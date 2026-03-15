@@ -122,10 +122,10 @@
         可同时启用多个推送通道，支持多种推送方式。
       </p>
       <PushChannelEditor
-        v-for="(ch, i) in form.pushChannels"
-        :key="i"
-        :index="i"
-        v-model="form.pushChannels[i]"
+          v-for="(ch, i) in form.pushChannels"
+          :key="i"
+          :index="i"
+          v-model="form.pushChannels[i]"
       />
     </div>
 
@@ -192,24 +192,24 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive } from 'vue'
+import {ref, onMounted, reactive} from 'vue'
 import PushChannelEditor from '../components/PushChannelEditor.vue'
-import { useApi } from '../composables/useApi.js'
+import {useApi} from '../composables/useApi.js'
 
-const api   = useApi()
+const api = useApi()
 const esp32 = window.__ESP32_DATA__ || {}
 
 const MAX_CH = esp32.MAX_PUSH_CHANNELS || 5
 
 function emptyChannel(i) {
   return {
-    enabled: false, type: 1, name: `通道${i+1}`,
+    enabled: false, type: 1, name: `通道${i + 1}`,
     url: '', key1: '', key2: '', customBody: '', customCallBody: ''
   }
 }
 
-const status  = ref(null)
-const saving  = ref(false)
+const status = ref(null)
+const saving = ref(false)
 const saveMsg = ref(null)
 
 const form = reactive({
@@ -226,31 +226,31 @@ const form = reactive({
   manualPhone: '',
   adminNote: '',
   deviceAlias: '',
-  pushChannels: Array.from({ length: MAX_CH }, (_, i) => emptyChannel(i))
+  pushChannels: Array.from({length: MAX_CH}, (_, i) => emptyChannel(i))
 })
 
 onMounted(async () => {
   try {
     status.value = await api.getStatus()
-    const cfg    = await api.getConfig()
+    const cfg = await api.getConfig()
     if (!cfg) return
-      Object.assign(form, {
-        webUser: cfg.webUser || '', webPass: cfg.webPass || '',
-        wifiSSID: cfg.wifiSSID || '', wifiPass: cfg.wifiPass || '',
-        smtpServer: cfg.smtpServer || '', smtpPort: cfg.smtpPort || 465,
-        smtpUser: cfg.smtpUser || '', smtpPass: cfg.smtpPass || '',
-        smtpSendTo: cfg.smtpSendTo || '',
-        adminPhone: cfg.adminPhone || '',
-        numberBlackList: cfg.numberBlackList || '',
-        autoRebootEnabled: cfg.autoRebootEnabled || false,
-        autoRebootTime: cfg.autoRebootTime || '03:00',
-        trafficKeepEnabled: cfg.trafficKeepEnabled || false,
-        trafficKeepIntervalHours: cfg.trafficKeepIntervalHours || 1,
-        trafficKeepSizeKb: cfg.trafficKeepSizeKb || 10,
-        manualPhone: cfg.manualPhone || '',
-        adminNote: cfg.adminNote || '',
-        deviceAlias: cfg.deviceAlias || '',
-      })
+    Object.assign(form, {
+      webUser: cfg.webUser || '', webPass: cfg.webPass || '',
+      wifiSSID: cfg.wifiSSID || '', wifiPass: cfg.wifiPass || '',
+      smtpServer: cfg.smtpServer || '', smtpPort: cfg.smtpPort || 465,
+      smtpUser: cfg.smtpUser || '', smtpPass: cfg.smtpPass || '',
+      smtpSendTo: cfg.smtpSendTo || '',
+      adminPhone: cfg.adminPhone || '',
+      numberBlackList: cfg.numberBlackList || '',
+      autoRebootEnabled: cfg.autoRebootEnabled || false,
+      autoRebootTime: cfg.autoRebootTime || '03:00',
+      trafficKeepEnabled: cfg.trafficKeepEnabled || false,
+      trafficKeepIntervalHours: cfg.trafficKeepIntervalHours || 1,
+      trafficKeepSizeKb: cfg.trafficKeepSizeKb || 10,
+      manualPhone: cfg.manualPhone || '',
+      adminNote: cfg.adminNote || '',
+      deviceAlias: cfg.deviceAlias || '',
+    })
     if (cfg.pushChannels?.length) {
       form.pushChannels = cfg.pushChannels.map((c, i) => ({
         ...emptyChannel(i), ...c
@@ -262,7 +262,7 @@ onMounted(async () => {
 })
 
 async function save() {
-  saving.value  = true
+  saving.value = true
   saveMsg.value = null
   try {
     const data = {
@@ -283,22 +283,22 @@ async function save() {
       deviceAlias: form.deviceAlias,
     }
     form.pushChannels.forEach((ch, i) => {
-      data[`push${i}en`]    = ch.enabled ? 'on' : ''
-      data[`push${i}type`]  = ch.type
-      data[`push${i}name`]  = ch.name
-      data[`push${i}url`]   = ch.url
-      data[`push${i}key1`]  = ch.key1
-      data[`push${i}key2`]  = ch.key2
-      data[`push${i}body`]  = ch.customBody
+      data[`push${i}en`] = ch.enabled ? 'on' : ''
+      data[`push${i}type`] = ch.type
+      data[`push${i}name`] = ch.name
+      data[`push${i}url`] = ch.url
+      data[`push${i}key1`] = ch.key1
+      data[`push${i}key2`] = ch.key2
+      data[`push${i}body`] = ch.customBody
       data[`push${i}cbody`] = ch.customCallBody
     })
     const res = await api.saveConfig(data)
-    saveMsg.value = { ok: res?.success, text: res?.message || '保存成功' }
+    saveMsg.value = {ok: res?.success, text: res?.message || '保存成功'}
     if (res?.wifiChanged) {
       saveMsg.value.text += '（WiFi已修改，设备将重启…）'
     }
   } catch (e) {
-    saveMsg.value = { ok: false, text: '请求失败: ' + e.message }
+    saveMsg.value = {ok: false, text: '请求失败: ' + e.message}
   } finally {
     saving.value = false
     window.scrollTo(0, 0)

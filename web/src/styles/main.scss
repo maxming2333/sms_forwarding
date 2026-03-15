@@ -249,8 +249,14 @@ textarea {
 }
 
 // ── Info table (from API responses) ──────────────────────────────────────────
+:deep(.info-table-wrap) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 :deep(.info-table) {
   width: 100%;
+  min-width: 320px;
   border-collapse: collapse;
   font-size: 13px;
 

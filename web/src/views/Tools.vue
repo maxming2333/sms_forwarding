@@ -3,15 +3,30 @@
     <!-- ── Firmware Info ─────────────────────────────────────────────────── -->
     <div class="card">
       <div class="card-title">📋 固件信息</div>
-      <table class="info-table">
-        <tr><td>项目名称</td><td>低成本短信转发器</td></tr>
-        <tr><td>作者</td>
-          <td><a :href="meta.repoUrl" target="_blank" rel="noopener">{{ meta.author }}</a></td></tr>
-        <tr><td>GitHub</td>
-          <td><a :href="meta.repoUrl" target="_blank" rel="noopener">{{ meta.repoUrl }}</a></td></tr>
-        <tr><td>Commit ID</td><td><code>{{ meta.commitId }}</code></td></tr>
-        <tr><td>编译时间</td><td>{{ meta.buildTime }}</td></tr>
-      </table>
+      <div class="info-table-wrap">
+        <table class="info-table">
+          <tr>
+            <td>项目名称</td>
+            <td>低成本短信转发器</td>
+          </tr>
+          <tr>
+            <td>作者</td>
+            <td><a :href="meta.repoUrl" target="_blank" rel="noopener">{{ meta.author }}</a></td>
+          </tr>
+          <tr>
+            <td>GitHub</td>
+            <td><a :href="meta.repoUrl" target="_blank" rel="noopener">{{ meta.repoUrl }}</a></td>
+          </tr>
+          <tr>
+            <td>Commit ID</td>
+            <td><code>{{ meta.commitId }}</code></td>
+          </tr>
+          <tr>
+            <td>编译时间</td>
+            <td>{{ meta.buildTime }}</td>
+          </tr>
+        </table>
+      </div>
     </div>
 
     <!-- ── MCU Info ──────────────────────────────────────────────────────── -->
@@ -22,30 +37,44 @@
       </button>
       <div v-if="sysInfoError" class="alert alert-error" style="margin-top:10px">{{ sysInfoError }}</div>
       <div v-if="sysInfo" style="margin-top:12px">
-        <table class="info-table">
-          <tr><td>芯片型号</td><td>{{ sysInfo.chipModel }} (Rev {{ sysInfo.chipRevision }})</td></tr>
-          <tr><td>唯一识别码</td><td><code>{{ sysInfo.chipId }}</code></td></tr>
-          <tr><td>CPU 主频</td><td>{{ sysInfo.cpuFreqMHz }} MHz</td></tr>
-          <tr><td>运行时长</td><td>{{ sysInfo.uptime }}</td></tr>
-          <tr>
-            <td>内存使用</td>
-            <td>
-              <div class="usage-bar-wrap">
-                <div class="usage-bar" :style="{ width: ramPct + '%', background: usageColor(ramPct) }"></div>
-              </div>
-              <span class="usage-label">{{ fmtKB(sysInfo.usedHeap) }} / {{ fmtKB(sysInfo.totalHeap) }} KB（{{ ramPct }}%）</span>
-            </td>
-          </tr>
-          <tr>
-            <td>Flash 占用</td>
-            <td>
-              <div class="usage-bar-wrap">
-                <div class="usage-bar" :style="{ width: flashPct + '%', background: usageColor(flashPct) }"></div>
-              </div>
-              <span class="usage-label">{{ fmtKB(sysInfo.sketchSize) }} / {{ fmtKB(sysInfo.totalFlash) }} KB（{{ flashPct }}%）</span>
-            </td>
-          </tr>
-        </table>
+        <div class="info-table-wrap">
+          <table class="info-table">
+            <tr>
+              <td>芯片型号</td>
+              <td>{{ sysInfo.chipModel }} (Rev {{ sysInfo.chipRevision }})</td>
+            </tr>
+            <tr>
+              <td>唯一识别码</td>
+              <td><code>{{ sysInfo.chipId }}</code></td>
+            </tr>
+            <tr>
+              <td>CPU 主频</td>
+              <td>{{ sysInfo.cpuFreqMHz }} MHz</td>
+            </tr>
+            <tr>
+              <td>运行时长</td>
+              <td>{{ sysInfo.uptime }}</td>
+            </tr>
+            <tr>
+              <td>内存使用</td>
+              <td>
+                <div class="usage-bar-wrap">
+                  <div class="usage-bar" :style="{ width: ramPct + '%', background: usageColor(ramPct) }"></div>
+                </div>
+                <span class="usage-label">{{ fmtKB(sysInfo.usedHeap) }} / {{ fmtKB(sysInfo.totalHeap) }} KB（{{ ramPct }}%）</span>
+              </td>
+            </tr>
+            <tr>
+              <td>Flash 占用</td>
+              <td>
+                <div class="usage-bar-wrap">
+                  <div class="usage-bar" :style="{ width: flashPct + '%', background: usageColor(flashPct) }"></div>
+                </div>
+                <span class="usage-label">{{ fmtKB(sysInfo.sketchSize) }} / {{ fmtKB(sysInfo.totalFlash) }} KB（{{ flashPct }}%）</span>
+              </td>
+            </tr>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -174,31 +203,34 @@
 
 <script setup>
 /* global __ESP32_DATA__ */
-import { ref, computed, nextTick } from 'vue'
-import { useApi } from '../composables/useApi.js'
+import {ref, computed, nextTick} from 'vue'
+import {useApi} from '../composables/useApi.js'
 
 const api = useApi()
 
 // ── Firmware metadata (injected at build time via Vite define) ────────────────
 const _d = typeof __ESP32_DATA__ !== 'undefined' ? __ESP32_DATA__ : {}
 const meta = {
-  author:    _d.AUTHOR || 'unknown',
-  repoUrl:   _d.REPO_URL || 'unknown',
-  commitId:  _d.GIT_COMMIT || 'unknown',
+  author: _d.AUTHOR || 'unknown',
+  repoUrl: _d.REPO_URL || 'unknown',
+  commitId: _d.GIT_COMMIT || 'unknown',
   buildTime: _d.BUILD_TIME || 'unknown',
 }
 
 // ── MCU Info ──────────────────────────────────────────────────────────────────
-const sysInfo        = ref(null)
+const sysInfo = ref(null)
 const sysInfoLoading = ref(false)
-const sysInfoError   = ref(null)
+const sysInfoError = ref(null)
 
-const ramPct   = computed(() => sysInfo.value
-  ? Math.round(sysInfo.value.usedHeap  / sysInfo.value.totalHeap  * 100) : 0)
+const ramPct = computed(() => sysInfo.value
+    ? Math.round(sysInfo.value.usedHeap / sysInfo.value.totalHeap * 100) : 0)
 const flashPct = computed(() => sysInfo.value
-  ? Math.round(sysInfo.value.sketchSize / sysInfo.value.totalFlash * 100) : 0)
+    ? Math.round(sysInfo.value.sketchSize / sysInfo.value.totalFlash * 100) : 0)
 
-function fmtKB(bytes) { return (bytes / 1024).toFixed(1) }
+function fmtKB(bytes) {
+  return (bytes / 1024).toFixed(1)
+}
+
 function usageColor(pct) {
   if (pct >= 85) return '#f44336'
   if (pct >= 65) return '#FF9800'
@@ -206,50 +238,62 @@ function usageColor(pct) {
 }
 
 async function loadSysInfo() {
-  sysInfoLoading.value = true; sysInfoError.value = null
+  sysInfoLoading.value = true;
+  sysInfoError.value = null
   try {
     sysInfo.value = await api.getSysInfo()
-  } catch (e) { sysInfoError.value = e.message }
-  finally { sysInfoLoading.value = false }
+  } catch (e) {
+    sysInfoError.value = e.message
+  } finally {
+    sysInfoLoading.value = false
+  }
 }
 
 // Load on mount
 loadSysInfo()
 
 // ── Reboot ────────────────────────────────────────────────────────────────────
-const rebooting    = ref(false)
+const rebooting = ref(false)
 const rebootResult = ref(null)
 
 async function confirmReboot() {
   if (!confirm('确定要重启设备吗？\n重启期间无法收发短信，约 10–20 秒后恢复。')) return
-  rebooting.value = true; rebootResult.value = null
+  rebooting.value = true;
+  rebootResult.value = null
   try {
     const r = await api.reboot()
-    rebootResult.value = { ok: r?.success, message: r?.message || '重启指令已发送' }
-  } catch (e) { rebootResult.value = { ok: false, message: e.message } }
-  finally { rebooting.value = false }
+    rebootResult.value = {ok: r?.success, message: r?.message || '重启指令已发送'}
+  } catch (e) {
+    rebootResult.value = {ok: false, message: e.message}
+  } finally {
+    rebooting.value = false
+  }
 }
 
 // ── Config Export / Import ────────────────────────────────────────────────────
 const cfgExporting = ref(false)
-const cfgResult    = ref(null)
+const cfgResult = ref(null)
 
 async function exportConfig() {
-  cfgExporting.value = true; cfgResult.value = null
+  cfgExporting.value = true;
+  cfgResult.value = null
   try {
     const data = await api.getConfig()
     if (!data) return
     const json = JSON.stringify(data, null, 2)
-    const blob = new Blob([json], { type: 'application/json' })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
+    const blob = new Blob([json], {type: 'application/json'})
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
     a.href = url
     a.download = 'sms_forwarding_config.json'
     a.click()
     URL.revokeObjectURL(url)
-    cfgResult.value = { ok: true, message: '配置已导出' }
-  } catch (e) { cfgResult.value = { ok: false, message: e.message } }
-  finally { cfgExporting.value = false }
+    cfgResult.value = {ok: true, message: '配置已导出'}
+  } catch (e) {
+    cfgResult.value = {ok: false, message: e.message}
+  } finally {
+    cfgExporting.value = false
+  }
 }
 
 async function importConfig(evt) {
@@ -259,119 +303,139 @@ async function importConfig(evt) {
   cfgResult.value = null
   try {
     const text = await file.text()
-    const cfg  = JSON.parse(text)
+    const cfg = JSON.parse(text)
 
     // Flatten JSON config → form params expected by POST /api/config
     const fd = {}
     const topKeys = [
-      'smtpServer','smtpPort','smtpUser','smtpPass','smtpSendTo',
-      'adminPhone','webUser','webPass','wifiSSID','wifiPass',
-      'numberBlackList','adminNote','deviceAlias','manualPhone',
-      'autoRebootEnabled','autoRebootTime',
-      'trafficKeepEnabled','trafficKeepIntervalHours','trafficKeepSizeKb',
+      'smtpServer', 'smtpPort', 'smtpUser', 'smtpPass', 'smtpSendTo',
+      'adminPhone', 'webUser', 'webPass', 'wifiSSID', 'wifiPass',
+      'numberBlackList', 'adminNote', 'deviceAlias', 'manualPhone',
+      'autoRebootEnabled', 'autoRebootTime',
+      'trafficKeepEnabled', 'trafficKeepIntervalHours', 'trafficKeepSizeKb',
     ]
     for (const k of topKeys) {
       if (cfg[k] !== undefined) fd[k] = cfg[k]
     }
     if (Array.isArray(cfg.pushChannels)) {
       cfg.pushChannels.forEach((ch, i) => {
-        fd[`push${i}en`]    = ch.enabled   ? 'true' : 'false'
-        fd[`push${i}type`]  = ch.type      ?? 0
-        fd[`push${i}url`]   = ch.url       ?? ''
-        fd[`push${i}name`]  = ch.name      ?? ''
-        fd[`push${i}key1`]  = ch.key1      ?? ''
-        fd[`push${i}key2`]  = ch.key2      ?? ''
-        fd[`push${i}body`]  = ch.customBody ?? ''
+        fd[`push${i}en`] = ch.enabled ? 'true' : 'false'
+        fd[`push${i}type`] = ch.type ?? 0
+        fd[`push${i}url`] = ch.url ?? ''
+        fd[`push${i}name`] = ch.name ?? ''
+        fd[`push${i}key1`] = ch.key1 ?? ''
+        fd[`push${i}key2`] = ch.key2 ?? ''
+        fd[`push${i}body`] = ch.customBody ?? ''
         fd[`push${i}cbody`] = ch.customCallBody ?? ''
       })
     }
 
     const r = await api.saveConfig(fd)
-    cfgResult.value = { ok: r?.success, message: r?.message || '配置已导入' }
+    cfgResult.value = {ok: r?.success, message: r?.message || '配置已导入'}
     if (r?.wifiChanged) {
       cfgResult.value.message += '（WiFi 已变更，设备将自动重启）'
     }
   } catch (e) {
-    cfgResult.value = { ok: false, message: '文件解析失败：' + e.message }
+    cfgResult.value = {ok: false, message: '文件解析失败：' + e.message}
   }
 }
 
 // ── Send SMS ──────────────────────────────────────────────────────────────────
-const smsForm    = ref({ phone: '', content: '' })
+const smsForm = ref({phone: '', content: ''})
 const smsSending = ref(false)
-const smsResult  = ref(null)
+const smsResult = ref(null)
 
 async function sendSms() {
   if (!smsForm.value.phone || !smsForm.value.content) return
-  smsSending.value = true; smsResult.value = null
+  smsSending.value = true;
+  smsResult.value = null
   try {
-    const r = await api.sendSms({ phone: smsForm.value.phone, content: smsForm.value.content })
-    smsResult.value = { ok: r?.success, message: r?.message }
-  } catch (e) { smsResult.value = { ok: false, message: e.message } }
-  finally { smsSending.value = false }
+    const r = await api.sendSms({phone: smsForm.value.phone, content: smsForm.value.content})
+    smsResult.value = {ok: r?.success, message: r?.message}
+  } catch (e) {
+    smsResult.value = {ok: false, message: e.message}
+  } finally {
+    smsSending.value = false
+  }
 }
 
 // ── Query ─────────────────────────────────────────────────────────────────────
 const queryResult = ref(null)
+
 async function query(type) {
   queryResult.value = null
   try {
     const r = await api.query(type)
-    queryResult.value = { ok: r?.success, message: r?.message }
-  } catch (e) { queryResult.value = { ok: false, message: e.message } }
+    queryResult.value = {ok: r?.success, message: r?.message}
+  } catch (e) {
+    queryResult.value = {ok: false, message: e.message}
+  }
 }
 
 // ── Ping ──────────────────────────────────────────────────────────────────────
-const pinging    = ref(false)
+const pinging = ref(false)
 const pingResult = ref(null)
 
 async function confirmPing() {
   if (!confirm('确定要执行 Ping 操作吗？\n这将消耗少量流量。')) return
-  pinging.value = true; pingResult.value = null
+  pinging.value = true;
+  pingResult.value = null
   try {
     const r = await api.ping()
-    pingResult.value = { ok: r?.success, message: r?.message }
-  } catch (e) { pingResult.value = { ok: false, message: e.message } }
-  finally { pinging.value = false }
+    pingResult.value = {ok: r?.success, message: r?.message}
+  } catch (e) {
+    pingResult.value = {ok: false, message: e.message}
+  } finally {
+    pinging.value = false
+  }
 }
 
 // ── Flight mode ───────────────────────────────────────────────────────────────
 const flightResult = ref(null)
+
 async function flightQuery() {
   flightResult.value = null
   try {
     const r = await api.flight('query')
-    flightResult.value = { ok: r?.success, message: r?.message }
-  } catch (e) { flightResult.value = { ok: false, message: e.message } }
+    flightResult.value = {ok: r?.success, message: r?.message}
+  } catch (e) {
+    flightResult.value = {ok: false, message: e.message}
+  }
 }
+
 async function flightToggle() {
   if (!confirm('确定要切换飞行模式吗？\n开启后模组无法收发短信。')) return
   flightResult.value = null
   try {
     const r = await api.flight('toggle')
-    flightResult.value = { ok: r?.success, message: r?.message }
-  } catch (e) { flightResult.value = { ok: false, message: e.message } }
+    flightResult.value = {ok: r?.success, message: r?.message}
+  } catch (e) {
+    flightResult.value = {ok: false, message: e.message}
+  }
 }
 
 // ── AT debugger ───────────────────────────────────────────────────────────────
-const atCmd   = ref('')
-const atBusy  = ref(false)
-const atLog   = ref([])
+const atCmd = ref('')
+const atBusy = ref(false)
+const atLog = ref([])
 const atLogEl = ref(null)
 
 async function sendAT() {
   const cmd = atCmd.value.trim()
   if (!cmd) return
-  atLog.value.push({ type: 'at-cmd',  prefix: '> ', text: cmd })
-  atCmd.value = ''; atBusy.value = true
+  atLog.value.push({type: 'at-cmd', prefix: '> ', text: cmd})
+  atCmd.value = '';
+  atBusy.value = true
   await nextTick()
   if (atLogEl.value) atLogEl.value.scrollTop = atLogEl.value.scrollHeight
   try {
     const r = await api.atCommand(cmd)
-    atLog.value.push({ type: r?.success ? 'at-resp' : 'at-err',
-                       prefix: '[RESP] ', text: r?.message || '无响应' })
+    atLog.value.push({
+      type: r?.success ? 'at-resp' : 'at-err',
+      prefix: '[RESP] ', text: r?.message || '无响应'
+    })
   } catch (e) {
-    atLog.value.push({ type: 'at-err', prefix: '❌ ', text: e.message })
+    atLog.value.push({type: 'at-err', prefix: '❌ ', text: e.message})
   } finally {
     atBusy.value = false
     await nextTick()

@@ -42,62 +42,63 @@
 </template>
 
 <script setup>
-import { reactive } from 'vue'
+import {reactive} from 'vue'
 
 function ep(method, path, summary, params = [], desc = '') {
-  return reactive({ method, path, summary, params, desc, _open: false, _loading: false, _response: null })
+  return reactive({method, path, summary, params, desc, _open: false, _loading: false, _response: null})
 }
+
 function p(name, desc, placeholder = '', required = false) {
-  return reactive({ name, desc, placeholder, required, _val: '' })
+  return reactive({name, desc, placeholder, required, _val: ''})
 }
 
 const endpoints = [
-  ep('GET',  '/api/status',    '获取设备状态（IP、SIM状态等）', [], '无需参数'),
-  ep('GET',  '/api/config',    '获取当前配置（JSON）', [], '无需参数'),
-  ep('POST', '/api/sendsms',   '发送短信', [
-    p('phone',   '目标手机号',   '13800138000', true),
-    p('content', '短信内容',     '测试内容...',  true)
+  ep('GET', '/api/status', '获取设备状态（IP、SIM状态等）', [], '无需参数'),
+  ep('GET', '/api/config', '获取当前配置（JSON）', [], '无需参数'),
+  ep('POST', '/api/sendsms', '发送短信', [
+    p('phone', '目标手机号', '13800138000', true),
+    p('content', '短信内容', '测试内容...', true)
   ]),
-  ep('GET',  '/api/query',     '模组信息查询', [
+  ep('GET', '/api/query', '模组信息查询', [
     p('type', '查询类型：ati / signal / siminfo / network / wifi', 'wifi', true)
   ]),
-  ep('GET',  '/api/flight',    '飞行模式控制', [
+  ep('GET', '/api/flight', '飞行模式控制', [
     p('action', '操作：query / toggle / on / off', 'query', true)
   ]),
-  ep('GET',  '/api/at',        '发送 AT 指令', [
+  ep('GET', '/api/at', '发送 AT 指令', [
     p('cmd', 'AT 指令', 'AT+CSQ', true)
   ]),
-  ep('POST', '/api/ping',      '向 8.8.8.8 发起 Ping（消耗少量流量）', [], '无需参数'),
+  ep('POST', '/api/ping', '向 8.8.8.8 发起 Ping（消耗少量流量）', [], '无需参数'),
   ep('POST', '/api/test_push', '测试推送通道', [
-    p('type', '推送类型（1-12）',        '1'),
-    p('url',  'Webhook / 推送地址',      'https://...'),
+    p('type', '推送类型（1-12）', '1'),
+    p('url', 'Webhook / 推送地址', 'https://...'),
     p('key1', '参数1（Token / Secret等）', ''),
-    p('key2', '参数2',                   ''),
-    p('body', '自定义模板体',            '')
+    p('key2', '参数2', ''),
+    p('body', '自定义模板体', '')
   ]),
 ]
 
 async function runTest(ep) {
-  ep._loading  = true
+  ep._loading = true
   ep._response = null
   try {
-    let url  = ep.path
-    let opts = { method: ep.method }
+    let url = ep.path
+    let opts = {method: ep.method}
     const kvs = ep.params.filter(p => p._val)
     if (ep.method === 'GET' && kvs.length) {
       url += '?' + kvs.map(p => `${p.name}=${encodeURIComponent(p._val)}`).join('&')
     } else if (ep.method === 'POST' && kvs.length) {
-      opts.headers = { 'Content-Type': 'application/x-www-form-urlencoded' }
+      opts.headers = {'Content-Type': 'application/x-www-form-urlencoded'}
       opts.body = kvs.map(p => `${p.name}=${encodeURIComponent(p._val)}`).join('&')
     }
-    const res  = await fetch(url, opts)
-    const ct   = res.headers.get('content-type') || ''
+    const res = await fetch(url, opts)
+    const ct = res.headers.get('content-type') || ''
     const body = ct.includes('json')
-      ? JSON.stringify(await res.json(), null, 2)
-      : await res.text()
-    ep._response = { ok: res.ok, status: res.status, body }
+        ? JSON.stringify(await res.json(), null, 2)
+        : await res.text()
+    ep._response = {ok: res.ok, status: res.status, body}
   } catch (e) {
-    ep._response = { ok: false, status: 0, body: e.message }
+    ep._response = {ok: false, status: 0, body: e.message}
   } finally {
     ep._loading = false
   }
