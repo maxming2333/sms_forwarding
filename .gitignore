@@ -2,3 +2,4 @@
 compile_commands.json
 node_modules
 dist
+web/esp32_config.json
