@@ -1,5 +1,6 @@
 #include "AppConfig.h"
 #include "wifi_config.h"   // WIFI_SSID / WIFI_PASS defaults (src/ is on include path)
+#include <esp_log.h>       // esp_log_level_set
 
 Config config;
 bool   configValid = false;
@@ -43,7 +44,11 @@ void saveConfig() {
 
 // ── Load ─────────────────────────────────────────────────────────────────────
 void loadConfig() {
-  prefs.begin("sms_config", true);
+  // On a fresh device every key is absent; Preferences logs [E] NOT_FOUND for
+  // each missing key even though it correctly returns the supplied default.
+  // Suppress that noise for the duration of the load, then restore.
+  esp_log_level_set("Preferences", ESP_LOG_NONE);
+  prefs.begin("sms_config", false);  // false = read-write, creates namespace on first boot
   config.smtpServer      = prefs.getString("smtpServer", "");
   config.smtpPort        = prefs.getInt   ("smtpPort",   465);
   config.smtpUser        = prefs.getString("smtpUser",   "");
@@ -84,6 +89,7 @@ void loadConfig() {
   }
 
   prefs.end();
+  esp_log_level_set("Preferences", ESP_LOG_ERROR);  // restore normal logging
   Serial.println("配置已加载");
 }
 

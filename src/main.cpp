@@ -24,8 +24,8 @@ void setup() {
   Serial.begin(115200);
   delay(1500);
 
-  Serial1.begin(115200, SERIAL_8N1, RXD, TXD);
   Serial1.setRxBufferSize(SERIAL_BUFFER_SIZE);
+  Serial1.begin(115200, SERIAL_8N1, RXD, TXD);
 
   while (Serial1.available()) Serial1.read();
   modemPowerCycle();
@@ -3289,8 +3289,8 @@ void setup() {
   delay(1500);  // 等 USB CDC 稳定
 
   // 模组串口（UART）
-  Serial1.begin(115200, SERIAL_8N1, RXD, TXD);
   Serial1.setRxBufferSize(SERIAL_BUFFER_SIZE);
+  Serial1.begin(115200, SERIAL_8N1, RXD, TXD);
 
   // 模组从“干净状态”启动（EN 断电重启 + 清串口噪声）
   while (Serial1.available()) Serial1.read();
