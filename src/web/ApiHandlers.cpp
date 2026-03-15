@@ -213,18 +213,41 @@ void handleQuery() {
       int idx = r.indexOf("+CESQ"); String p = r.substring(idx + 6);
       int end = p.indexOf('\r'); if (end < 0) end = p.indexOf('\n');
       if (end > 0) p = p.substring(0, end); p.trim();
-      // parse RSRP (field 6)
+      // parse all 6 fields: rxlev,ber,rscp,ecno,rsrq,rsrp
       String vals[6]; int vi=0, ss=0;
       for (int i = 0; i <= (int)p.length() && vi < 6; i++) {
         if (i == (int)p.length() || p.charAt(i) == ',') {
           vals[vi] = p.substring(ss, i); vals[vi].trim(); vi++; ss = i+1;
         }
       }
+      // RSRP: 0-97 maps to -140 ~ -44 dBm; 99/255 = unknown
       int rsrp = vals[5].toInt();
-      String rsrpStr = (rsrp==99||rsrp==255) ? "未知" :
-        (String(-140 + rsrp) + " dBm");
-      msg = "<table class='info-table'><tr><td>信号强度(RSRP)</td><td>" + rsrpStr
-          + "</td></tr><tr><td>原始数据</td><td>" + p + "</td></tr></table>";
+      String rsrpStr;
+      if (rsrp == 99 || rsrp == 255) {
+        rsrpStr = "未知";
+      } else {
+        int rsrpDbm = -140 + rsrp;
+        rsrpStr = String(rsrpDbm) + " dBm";
+        if      (rsrpDbm >= -80)  rsrpStr += " (信号极好)";
+        else if (rsrpDbm >= -90)  rsrpStr += " (信号良好)";
+        else if (rsrpDbm >= -100) rsrpStr += " (信号一般)";
+        else if (rsrpDbm >= -110) rsrpStr += " (信号较弱)";
+        else                       rsrpStr += " (信号很差)";
+      }
+      // RSRQ: 0-34 maps to -19.5 ~ -3 dB; 99/255 = unknown
+      int rsrq = vals[4].toInt();
+      String rsrqStr;
+      if (rsrq == 99 || rsrq == 255) {
+        rsrqStr = "未知";
+      } else {
+        char rsrqBuf[16];
+        snprintf(rsrqBuf, sizeof(rsrqBuf), "%.1f dB", -19.5f + rsrq * 0.5f);
+        rsrqStr = String(rsrqBuf);
+      }
+      msg = "<table class='info-table'>"
+            "<tr><td>信号强度 (RSRP)</td><td>" + rsrpStr + "</td></tr>"
+            "<tr><td>信号质量 (RSRQ)</td><td>" + rsrqStr + "</td></tr>"
+            "<tr><td>原始数据</td><td>" + p + "</td></tr></table>";
     } else { msg = "查询失败"; }
   }
   else if (type == "siminfo") {
@@ -270,15 +293,39 @@ void handleQuery() {
     }
     msg += "<tr><td>运营商</td><td>" + oper + "</td></tr>";
     r = sendATCommand("AT+CGACT?", 2000);
-    msg += "<tr><td>数据连接</td><td>" + String(r.indexOf("+CGACT: 1,1")>=0?"已激活":"未激活") + "</td></tr></table>";
+    msg += "<tr><td>数据连接</td><td>" + String(r.indexOf("+CGACT: 1,1")>=0?"已激活":"未激活") + "</td></tr>";
+    // APN
+    r = sendATCommand("AT+CGDCONT?", 2000); String apn = "未知";
+    if (r.indexOf("+CGDCONT:") >= 0) {
+      int a = r.indexOf(",\""); if (a >= 0) {
+        a = r.indexOf(",\"", a + 2);  // skip PDP type, get APN
+        if (a >= 0) { int b = r.indexOf('"', a + 2); if (b > a) {
+          apn = r.substring(a + 2, b); if (!apn.length()) apn = "(自动)"; }}
+      }
+    }
+    msg += "<tr><td>APN</td><td>" + apn + "</td></tr></table>";
   }
   else if (type == "wifi") {
     ok = true; msg = "<table class='info-table'>";
     msg += "<tr><td>连接状态</td><td>" + String(WiFi.isConnected()?"已连接":"未连接") + "</td></tr>";
-    msg += "<tr><td>SSID</td><td>"     + WiFi.SSID() + "</td></tr>";
-    msg += "<tr><td>IP地址</td><td>"   + WiFi.localIP().toString() + "</td></tr>";
-    msg += "<tr><td>信号RSSI</td><td>" + String(WiFi.RSSI()) + " dBm</td></tr>";
-    msg += "<tr><td>MAC地址</td><td>"  + WiFi.macAddress() + "</td></tr></table>";
+    String ssid = WiFi.SSID(); if (!ssid.length()) ssid = "未知";
+    msg += "<tr><td>当前SSID</td><td>" + ssid + "</td></tr>";
+    int rssi = WiFi.RSSI();
+    String rssiStr = String(rssi) + " dBm";
+    if      (rssi >= -50) rssiStr += " (信号极好)";
+    else if (rssi >= -60) rssiStr += " (信号很好)";
+    else if (rssi >= -70) rssiStr += " (信号良好)";
+    else if (rssi >= -80) rssiStr += " (信号一般)";
+    else if (rssi >= -90) rssiStr += " (信号较弱)";
+    else                   rssiStr += " (信号很差)";
+    msg += "<tr><td>信号强度 (RSSI)</td><td>" + rssiStr + "</td></tr>";
+    msg += "<tr><td>IP地址</td><td>"      + WiFi.localIP().toString()   + "</td></tr>";
+    msg += "<tr><td>网关</td><td>"        + WiFi.gatewayIP().toString() + "</td></tr>";
+    msg += "<tr><td>子网掩码</td><td>"    + WiFi.subnetMask().toString() + "</td></tr>";
+    msg += "<tr><td>DNS服务器</td><td>"   + WiFi.dnsIP().toString()     + "</td></tr>";
+    msg += "<tr><td>MAC地址</td><td>"     + WiFi.macAddress()           + "</td></tr>";
+    msg += "<tr><td>路由器BSSID</td><td>" + WiFi.BSSIDstr()             + "</td></tr>";
+    msg += "<tr><td>WiFi信道</td><td>"    + String(WiFi.channel())      + "</td></tr></table>";
   }
   else { msg = "未知查询类型"; }
 
@@ -378,19 +425,30 @@ void handlePing() {
           gotResult = true;
           bool success = (res == 0 || res == 1) || (comma >= 0 && params.length() > 5);
           if (success) {
-            // parse ip,len,time,ttl
+            // parse ip,packet_len,time,ttl
             if (comma >= 0) {
               String rest = params.substring(comma + 1);
+              // Extract IP (may be quoted)
+              String ip;
               if (rest.startsWith("\"")) {
                 int qe = rest.indexOf('"', 1);
-                rest = rest.substring(qe + 2);
+                if (qe >= 0) { ip = rest.substring(1, qe); rest = rest.substring(qe + 2); }
               } else {
-                int c2 = rest.indexOf(','); if (c2 >= 0) rest = rest.substring(c2 + 1);
+                int c2 = rest.indexOf(',');
+                if (c2 >= 0) { ip = rest.substring(0, c2); rest = rest.substring(c2 + 1); }
               }
-              int c3 = rest.indexOf(','), c4 = c3 >= 0 ? rest.indexOf(',', c3+1) : -1;
-              String tstr = c3 >= 0 ? (c4 >= 0 ? rest.substring(c3+1, c4) : rest.substring(c3+1)) : "";
-              tstr.trim();
-              resultMsg = "Ping成功，延迟: " + tstr + "ms";
+              // Skip packet_len, then read time and ttl
+              int c3 = rest.indexOf(',');
+              if (c3 >= 0) {
+                rest = rest.substring(c3 + 1);  // skip packet_len
+                int c4 = rest.indexOf(',');
+                String tstr   = (c4 >= 0) ? rest.substring(0, c4) : rest;
+                String ttlStr = (c4 >= 0) ? rest.substring(c4 + 1) : "N/A";
+                tstr.trim(); ttlStr.trim();
+                resultMsg = "目标: " + ip + ", 延迟: " + tstr + "ms, TTL: " + ttlStr;
+              } else {
+                resultMsg = "Ping成功";
+              }
             } else { resultMsg = "Ping成功"; }
           } else {
             resultMsg = "Ping超时或目标不可达 (错误码: " + String(res) + ")";
@@ -405,7 +463,7 @@ void handlePing() {
   Serial.println("\n[Ping] 完成");
   sendATCommand("AT+CGACT=0,1", 5000);
 
-  bool suc = gotResult && resultMsg.indexOf("成功") >= 0;
+  bool suc = gotResult && (resultMsg.indexOf("延迟") >= 0 || resultMsg.indexOf("成功") >= 0);
   if (!gotResult && !gotError) resultMsg = "操作超时，未收到Ping结果";
   sendClose(200, "application/json",
     "{\"success\":" + String(suc?"true":"false") + ",\"message\":\"" + jsonEscape(resultMsg) + "\"}");

@@ -1,6 +1,5 @@
 #include "AppConfig.h"
 #include "wifi_config.h"   // WIFI_SSID / WIFI_PASS defaults (src/ is on include path)
-#include <esp_log.h>       // esp_log_level_set
 
 Config config;
 bool   configValid = false;
@@ -44,52 +43,55 @@ void saveConfig() {
 
 // ── Load ─────────────────────────────────────────────────────────────────────
 void loadConfig() {
-  // On a fresh device every key is absent; Preferences logs [E] NOT_FOUND for
-  // each missing key even though it correctly returns the supplied default.
-  // Suppress that noise for the duration of the load, then restore.
-  esp_log_level_set("Preferences", ESP_LOG_NONE);
-  prefs.begin("sms_config", false);  // false = read-write, creates namespace on first boot
-  config.smtpServer      = prefs.getString("smtpServer", "");
-  config.smtpPort        = prefs.getInt   ("smtpPort",   465);
-  config.smtpUser        = prefs.getString("smtpUser",   "");
-  config.smtpPass        = prefs.getString("smtpPass",   "");
-  config.smtpSendTo      = prefs.getString("smtpSendTo", "");
-  config.adminPhone      = prefs.getString("adminPhone", "");
-  config.webUser         = prefs.getString("webUser",    DEFAULT_WEB_USER);
-  config.webPass         = prefs.getString("webPass",    DEFAULT_WEB_PASS);
-  config.wifiSSID        = prefs.getString("wifiSSID",   WIFI_SSID);
-  config.wifiPass        = prefs.getString("wifiPass",   WIFI_PASS);
-  config.numberBlackList = prefs.getString("numBlkList", "");
-  config.autoRebootEnabled = prefs.getBool  ("rebootEn",   false);
-  config.autoRebootTime    = prefs.getString("rebootTime", "03:00");
-  config.trafficKeepEnabled       = prefs.getBool("trafEn",  false);
-  config.trafficKeepIntervalHours = prefs.getInt ("trafHrs", 1);
-  config.trafficKeepSizeKb        = prefs.getInt ("trafKb",  10);
+  prefs.begin("sms_config", false);
+
+  // Helpers: check isKey() first so Preferences never hits the NVS NOT_FOUND
+  // code-path that prints noisy [E] log messages on fresh/erased devices.
+  auto gS = [&](const char* k, const String& d)  -> String  { return prefs.isKey(k) ? prefs.getString(k)          : d; };
+  auto gI = [&](const char* k, int d)             -> int     { return prefs.isKey(k) ? prefs.getInt(k)             : d; };
+  auto gB = [&](const char* k, bool d)            -> bool    { return prefs.isKey(k) ? prefs.getBool(k)            : d; };
+  auto gU = [&](const char* k, uint8_t d)         -> uint8_t { return prefs.isKey(k) ? prefs.getUChar(k)           : d; };
+
+  config.smtpServer      = gS("smtpServer", "");
+  config.smtpPort        = gI("smtpPort",   465);
+  config.smtpUser        = gS("smtpUser",   "");
+  config.smtpPass        = gS("smtpPass",   "");
+  config.smtpSendTo      = gS("smtpSendTo", "");
+  config.adminPhone      = gS("adminPhone", "");
+  config.webUser         = gS("webUser",    DEFAULT_WEB_USER);
+  config.webPass         = gS("webPass",    DEFAULT_WEB_PASS);
+  config.wifiSSID        = gS("wifiSSID",   WIFI_SSID);
+  config.wifiPass        = gS("wifiPass",   WIFI_PASS);
+  config.numberBlackList = gS("numBlkList", "");
+  config.autoRebootEnabled        = gB("rebootEn",  false);
+  config.autoRebootTime           = gS("rebootTime","03:00");
+  config.trafficKeepEnabled       = gB("trafEn",  false);
+  config.trafficKeepIntervalHours = gI("trafHrs", 1);
+  config.trafficKeepSizeKb        = gI("trafKb",  10);
 
   for (int i = 0; i < MAX_PUSH_CHANNELS; i++) {
     String p = "push" + String(i);
-    config.pushChannels[i].enabled        = prefs.getBool  ((p + "en"   ).c_str(), false);
-    config.pushChannels[i].type           = (PushType)prefs.getUChar((p + "type").c_str(), PUSH_TYPE_POST_JSON);
-    config.pushChannels[i].url            = prefs.getString((p + "url"  ).c_str(), "");
-    config.pushChannels[i].name           = prefs.getString((p + "name" ).c_str(), "通道" + String(i + 1));
-    config.pushChannels[i].key1           = prefs.getString((p + "k1"   ).c_str(), "");
-    config.pushChannels[i].key2           = prefs.getString((p + "k2"   ).c_str(), "");
-    config.pushChannels[i].customBody     = prefs.getString((p + "body" ).c_str(), "");
-    config.pushChannels[i].customCallBody = prefs.getString((p + "cbody").c_str(), "");
+    config.pushChannels[i].enabled        = gB((p+"en"   ).c_str(), false);
+    config.pushChannels[i].type           = (PushType)gU((p+"type").c_str(), (uint8_t)PUSH_TYPE_POST_JSON);
+    config.pushChannels[i].url            = gS((p+"url"  ).c_str(), "");
+    config.pushChannels[i].name           = gS((p+"name" ).c_str(), "通道" + String(i + 1));
+    config.pushChannels[i].key1           = gS((p+"k1"   ).c_str(), "");
+    config.pushChannels[i].key2           = gS((p+"k2"   ).c_str(), "");
+    config.pushChannels[i].customBody     = gS((p+"body" ).c_str(), "");
+    config.pushChannels[i].customCallBody = gS((p+"cbody").c_str(), "");
   }
 
   // Migrate legacy single-channel config (httpUrl) → channel 0
-  String oldUrl = prefs.getString("httpUrl", "");
+  String oldUrl = gS("httpUrl", "");
   if (oldUrl.length() > 0 && !config.pushChannels[0].enabled) {
     config.pushChannels[0].enabled = true;
     config.pushChannels[0].url     = oldUrl;
-    config.pushChannels[0].type    = prefs.getUChar("barkMode", 0) ? PUSH_TYPE_BARK : PUSH_TYPE_POST_JSON;
+    config.pushChannels[0].type    = gU("barkMode", 0) ? PUSH_TYPE_BARK : PUSH_TYPE_POST_JSON;
     config.pushChannels[0].name    = "迁移通道";
     Serial.println("已迁移旧HTTP配置到推送通道1");
   }
 
   prefs.end();
-  esp_log_level_set("Preferences", ESP_LOG_ERROR);  // restore normal logging
   Serial.println("配置已加载");
 }
 
