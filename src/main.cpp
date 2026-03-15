@@ -65,6 +65,9 @@ struct Config {
   PushChannel pushChannels[MAX_PUSH_CHANNELS];  // 多推送通道
   String webUser;      // Web管理账号
   String webPass;      // Web管理密码
+  String wifiSSID;     // WiFi名称（可通过Web界面修改）
+  String wifiPass;     // WiFi密码（可通过Web界面修改）
+  String numberBlackList;  // 号码黑名单（换行符分隔）
 };
 
 // 默认Web管理账号密码
@@ -82,6 +85,7 @@ WebServer server(80);
 bool configValid = false;  // 配置是否有效
 bool timeSynced = false;   // NTP时间是否已同步
 unsigned long lastPrintTime = 0;  // 上次打印IP的时间
+String devicePhoneNumber = "未知号码"; // 本机号码（SIM卡号）
 
 #define SERIAL_BUFFER_SIZE 500
 #define MAX_PDU_LENGTH 300
@@ -118,6 +122,7 @@ void sendEmailNotification(const char* subject, const char* body);
 bool sendSMS(const char* phoneNumber, const char* message);
 String jsonEscape(const String& str);
 bool sendATandWaitOK(const char* cmd, unsigned long timeout);
+int sendToChannel(const PushChannel& channel, const char* sender, const char* message, const char* timestamp, const char* devicePhone);
 
 // 保存配置到NVS
 void saveConfig() {
@@ -130,6 +135,9 @@ void saveConfig() {
   preferences.putString("adminPhone", config.adminPhone);
   preferences.putString("webUser", config.webUser);
   preferences.putString("webPass", config.webPass);
+  preferences.putString("wifiSSID", config.wifiSSID);
+  preferences.putString("wifiPass", config.wifiPass);
+  preferences.putString("numBlkList", config.numberBlackList);
 
   // 保存推送通道配置
   for (int i = 0; i < MAX_PUSH_CHANNELS; i++) {
@@ -158,6 +166,9 @@ void loadConfig() {
   config.adminPhone = preferences.getString("adminPhone", "");
   config.webUser = preferences.getString("webUser", DEFAULT_WEB_USER);
   config.webPass = preferences.getString("webPass", DEFAULT_WEB_PASS);
+  config.wifiSSID = preferences.getString("wifiSSID", WIFI_SSID);
+  config.wifiPass = preferences.getString("wifiPass", WIFI_PASS);
+  config.numberBlackList = preferences.getString("numBlkList", "");
 
   // 加载推送通道配置
   for (int i = 0; i < MAX_PUSH_CHANNELS; i++) {
@@ -268,6 +279,13 @@ const char* htmlPage = R"rawliteral(
     .push-channel-body { display: none; }
     .push-channel.enabled .push-channel-body { display: block; }
     .push-type-hint { font-size: 11px; color: #666; margin-top: 5px; padding: 8px; background: #f0f0f0; border-radius: 3px; }
+    .btn-test { background: #FF9800; width: auto; padding: 8px 20px; margin-top: 8px; font-size: 14px; }
+    .btn-test:hover { background: #F57C00; }
+    .btn-test:disabled { background: #ccc; cursor: not-allowed; }
+    .test-result { margin-top: 8px; padding: 8px; border-radius: 4px; font-size: 13px; display: none; }
+    .test-result.test-success { background: #e8f5e9; border-left: 3px solid #4CAF50; color: #2e7d32; }
+    .test-result.test-error { background: #ffebee; border-left: 3px solid #f44336; color: #c62828; }
+    .test-result.test-loading { background: #fff3e0; border-left: 3px solid #FF9800; color: #e65100; }
   </style>
 </head>
 <body>
@@ -276,6 +294,7 @@ const char* htmlPage = R"rawliteral(
     <div class="nav">
       <a href="/" class="active">⚙️ 系统配置</a>
       <a href="/tools">🧰 工具箱</a>
+      <a href="/api-docs">📚 API文档</a>
     </div>
     <div class="status" id="status">设备IP: <strong>%IP%</strong></div>
 
@@ -323,6 +342,28 @@ const char* htmlPage = R"rawliteral(
         <div class="hint" style="margin-bottom:15px;">可同时启用多个推送通道，每个通道独立配置。支持POST JSON、Bark、GET、钉钉、PushPlus、Server酱等多种方式。</div>
 
         %PUSH_CHANNELS%
+      </div>
+
+      <div class="section">
+        <div class="section-title">📡 WiFi 设置</div>
+        <div class="hint" style="margin-bottom:10px;">修改WiFi配置后保存将自动重启设备并连接新WiFi。若连接失败将自动开启热点 <b>SMS-Forwarder-AP</b>。</div>
+        <div class="form-group">
+          <label>WiFi 名称 (SSID)</label>
+          <input type="text" name="wifiSSID" value="%WIFI_SSID%" placeholder="请输入WiFi名称">
+        </div>
+        <div class="form-group">
+          <label>WiFi 密码</label>
+          <input type="password" name="wifiPass" value="%WIFI_PASS%" placeholder="请输入WiFi密码">
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">🚫 号码黑名单</div>
+        <div class="hint" style="margin-bottom:15px;">每行一个号码，来自黑名单号码的短信将被忽略（不转发、不执行命令）。</div>
+        <div class="form-group">
+          <label>黑名单号码</label>
+          <textarea name="numberBlackList" rows="5">%NUMBER_BLACK_LIST%</textarea>
+        </div>
       </div>
 
       <div class="section">
@@ -389,7 +430,7 @@ const char* htmlPage = R"rawliteral(
         document.getElementById('key1label' + idx).innerText = 'SendKey';
         document.getElementById('key1' + idx).placeholder = 'SCT...';
       } else if (type == 7) {
-        hint.innerHTML = '<b>自定义模板：</b><br>在请求体模板中使用 {sender} {message} {timestamp} 作为占位符';
+        hint.innerHTML = '<b>自定义模板：</b><br>在请求体模板中使用 {sender} {message} {timestamp} {device} 作为占位符';
         customFields.style.display = 'block';
       } else if (type == 8) {
         hint.innerHTML = '<b>飞书机器人：</b><br>填写Webhook地址，如需签名验证请填Secret';
@@ -416,6 +457,40 @@ const char* htmlPage = R"rawliteral(
         updateTypeHint(i);
       }
     });
+    function testChannel(idx) {
+      var btn = document.getElementById('testBtn' + idx);
+      var result = document.getElementById('testResult' + idx);
+      btn.disabled = true;
+      btn.textContent = '⏳ 测试中...';
+      result.className = 'test-result test-loading';
+      result.style.display = 'block';
+      result.textContent = '正在发送测试消息...';
+      var formData = new URLSearchParams();
+      formData.append('type', document.getElementById('push' + idx + 'type').value);
+      formData.append('url', document.querySelector('[name=push' + idx + 'url]').value);
+      var k1 = document.getElementById('key1' + idx);
+      formData.append('key1', k1 ? k1.value : '');
+      var k2 = document.getElementById('key2' + idx);
+      formData.append('key2', k2 ? k2.value : '');
+      var bodyEl = document.querySelector('[name=push' + idx + 'body]');
+      formData.append('body', bodyEl ? bodyEl.value : '');
+      fetch('/test_push', { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: formData })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          btn.disabled = false;
+          btn.textContent = '🧪 测试';
+          result.className = 'test-result ' + (data.success ? 'test-success' : 'test-error');
+          result.style.display = 'block';
+          result.innerHTML = (data.success ? '✅ ' : '❌ ') + data.message;
+        })
+        .catch(function(err) {
+          btn.disabled = false;
+          btn.textContent = '🧪 测试';
+          result.className = 'test-result test-error';
+          result.style.display = 'block';
+          result.textContent = '❌ 请求失败: ' + err;
+        });
+    }
   </script>
 </body>
 </html>
@@ -476,6 +551,7 @@ const char* htmlToolsPage = R"rawliteral(
     <div class="nav">
       <a href="/">⚙️ 系统配置</a>
       <a href="/tools" class="active">🧰 工具箱</a>
+      <a href="/api-docs">📚 API文档</a>
     </div>
     <div class="status" id="status">设备IP: <strong>%IP%</strong></div>
 
@@ -725,6 +801,222 @@ const char* htmlToolsPage = R"rawliteral(
 </html>
 )rawliteral";
 
+// API文档页面
+const char* htmlApiDocsPage = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API 文档</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 20px; background: #fafafa; color: #333; }
+    .container { max-width: 1000px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    h1 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 0; }
+    .nav { margin-bottom: 30px; display: flex; gap: 10px; border-bottom: 1px solid #eee; padding-bottom: 15px; flex-wrap: wrap; }
+    .nav a { text-decoration: none; color: #555; padding: 8px 16px; border-radius: 6px; transition: all 0.3s; font-weight: 500; }
+    .nav a:hover { background: #f0f0f0; color: #333; }
+    .nav a.active { background: #007bff; color: white; }
+    .endpoint { border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 20px; overflow: hidden; }
+    .endpoint-header { display: flex; align-items: center; padding: 15px; cursor: pointer; background: #fdfdfd; transition: background 0.2s; }
+    .endpoint-header:hover { background: #f5f5f5; }
+    .method { padding: 4px 10px; border-radius: 4px; font-weight: bold; font-size: 14px; margin-right: 15px; color: white; min-width: 50px; text-align: center; }
+    .method.get { background: #61affe; }
+    .method.post { background: #49cc90; }
+    .path { font-family: monospace; font-size: 16px; font-weight: bold; color: #333; flex-grow: 1; }
+    .summary { color: #666; font-size: 14px; }
+    .endpoint-body { padding: 20px; border-top: 1px solid #e0e0e0; display: none; background: white; }
+    .endpoint.open .endpoint-body { display: block; }
+    h3 { margin-top: 0; font-size: 16px; color: #444; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    th, td { text-align: left; padding: 10px; border-bottom: 1px solid #eee; }
+    th { background: #f9f9f9; color: #555; font-weight: 600; width: 20%; }
+    .required { color: #e74c3c; font-size: 12px; margin-left: 5px; }
+    input[type="text"] { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+    .btn-test { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; }
+    .btn-test:hover { background: #0056b3; }
+    .btn-test:disabled { background: #ccc; cursor: not-allowed; }
+    .response-area { margin-top: 20px; background: #282c34; border-radius: 6px; padding: 15px; overflow-x: auto; color: #abb2bf; font-family: monospace; font-size: 14px; display: none; white-space: pre-wrap; word-break: break-all; }
+    .response-status { font-weight: bold; margin-bottom: 10px; display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 12px; }
+    .response-status.success { background: #49cc90; color: white; }
+    .response-status.error { background: #e74c3c; color: white; }
+    .param-type { font-family: monospace; color: #888; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📱 短信转发器 API 文档</h1>
+    <div class="nav">
+      <a href="/">⚙️ 系统配置</a>
+      <a href="/tools">🧰 工具箱</a>
+      <a href="/api-docs" class="active">📚 API文档</a>
+    </div>
+    <p>在此页面可以查看服务支持的 API 接口，并直接进行调用测试。所有接口均受 Basic Auth 保护，此页面使用当前登录态发请求。</p>
+    <p>基础 URL: <code>http://%IP%</code></p>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggleEndpoint(this)">
+        <span class="method post">POST</span>
+        <span class="path">/sendsms</span>
+        <span class="summary">发送短信</span>
+      </div>
+      <div class="endpoint-body">
+        <form onsubmit="return submitApi(event, '/sendsms', 'POST')">
+          <h3>参数 (application/x-www-form-urlencoded)</h3>
+          <table>
+            <tr><th>名称</th><th>说明</th><th>测试值</th></tr>
+            <tr><td>phone<span class="required">*</span><br><span class="param-type">string</span></td><td>目标手机号</td><td><input type="text" name="phone" placeholder="13800138000" required></td></tr>
+            <tr><td>content<span class="required">*</span><br><span class="param-type">string</span></td><td>短信内容</td><td><input type="text" name="content" placeholder="测试短信内容..." required></td></tr>
+          </table>
+          <button type="submit" class="btn-test">发起测试</button>
+          <div class="response-area"></div>
+        </form>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggleEndpoint(this)">
+        <span class="method get">GET</span>
+        <span class="path">/query</span>
+        <span class="summary">模组信息查询</span>
+      </div>
+      <div class="endpoint-body">
+        <form onsubmit="return submitApi(event, '/query', 'GET')">
+          <h3>参数</h3>
+          <table>
+            <tr><th>名称</th><th>说明</th><th>测试值</th></tr>
+            <tr><td>type<span class="required">*</span><br><span class="param-type">string</span></td><td>查询类型 (ati, signal, siminfo, network, wifi)</td><td><input type="text" name="type" placeholder="wifi" required></td></tr>
+          </table>
+          <button type="submit" class="btn-test">发起测试</button>
+          <div class="response-area"></div>
+        </form>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggleEndpoint(this)">
+        <span class="method post">POST</span>
+        <span class="path">/flight</span>
+        <span class="summary">飞行模式控制</span>
+      </div>
+      <div class="endpoint-body">
+        <form onsubmit="return submitApi(event, '/flight', 'POST')">
+          <h3>参数 (application/x-www-form-urlencoded)</h3>
+          <table>
+            <tr><th>名称</th><th>说明</th><th>测试值</th></tr>
+            <tr><td>action<span class="required">*</span><br><span class="param-type">string</span></td><td>动作 (toggle, on, off, query)</td><td><input type="text" name="action" placeholder="toggle" required></td></tr>
+          </table>
+          <button type="submit" class="btn-test">发起测试</button>
+          <div class="response-area"></div>
+        </form>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggleEndpoint(this)">
+        <span class="method post">POST</span>
+        <span class="path">/ping</span>
+        <span class="summary">执行设备 Ping 测试（可能耗时较长）</span>
+      </div>
+      <div class="endpoint-body">
+        <form onsubmit="return submitApi(event, '/ping', 'POST')">
+          <p>无需参数。执行 AT+MPING 发送 1 个数据包到 8.8.8.8。</p>
+          <button type="submit" class="btn-test">发起测试</button>
+          <div class="response-area"></div>
+        </form>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggleEndpoint(this)">
+        <span class="method post">POST</span>
+        <span class="path">/at</span>
+        <span class="summary">执行任意 AT 指令</span>
+      </div>
+      <div class="endpoint-body">
+        <form onsubmit="return submitApi(event, '/at', 'POST')">
+          <h3>参数 (application/x-www-form-urlencoded)</h3>
+          <table>
+            <tr><th>名称</th><th>说明</th><th>测试值</th></tr>
+            <tr><td>cmd<span class="required">*</span><br><span class="param-type">string</span></td><td>AT指令</td><td><input type="text" name="cmd" placeholder="AT+CSQ" required></td></tr>
+          </table>
+          <button type="submit" class="btn-test">发起测试</button>
+          <div class="response-area"></div>
+        </form>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggleEndpoint(this)">
+        <span class="method post">POST</span>
+        <span class="path">/test_push</span>
+        <span class="summary">测试推送通道</span>
+      </div>
+      <div class="endpoint-body">
+        <form onsubmit="return submitApi(event, '/test_push', 'POST')">
+          <h3>参数 (application/x-www-form-urlencoded)</h3>
+          <table>
+            <tr><th>名称</th><th>说明</th><th>测试值</th></tr>
+            <tr><td>type<span class="required">*</span><br><span class="param-type">int</span></td><td>推送类型 (1-10)</td><td><input type="text" name="type" placeholder="1"></td></tr>
+            <tr><td>url<br><span class="param-type">string</span></td><td>Webhook/推送地址</td><td><input type="text" name="url" placeholder="https://..."></td></tr>
+            <tr><td>key1<br><span class="param-type">string</span></td><td>参数1 (Token/Secret等)</td><td><input type="text" name="key1"></td></tr>
+            <tr><td>key2<br><span class="param-type">string</span></td><td>参数2</td><td><input type="text" name="key2"></td></tr>
+            <tr><td>body<br><span class="param-type">string</span></td><td>自定义模板体</td><td><input type="text" name="body"></td></tr>
+          </table>
+          <button type="submit" class="btn-test">发起测试</button>
+          <div class="response-area"></div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+  <script>
+    function toggleEndpoint(element) {
+      element.parentElement.classList.toggle('open');
+    }
+    async function submitApi(event, path, method) {
+      event.preventDefault();
+      const form = event.target;
+      const btn = form.querySelector('.btn-test');
+      const responseArea = form.querySelector('.response-area');
+      btn.disabled = true;
+      responseArea.style.display = 'none';
+      let url = path;
+      let options = { method: method };
+      const formData = new FormData(form);
+      const params = new URLSearchParams(formData);
+      if (method === 'GET') {
+        if (params.toString()) url += '?' + params.toString();
+      } else {
+        options.headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
+        options.body = params.toString();
+      }
+      try {
+        const response = await fetch(url, options);
+        const contentType = response.headers.get("content-type");
+        let displayContent = '';
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+          const data = await response.json();
+          displayContent = JSON.stringify(data, null, 2);
+        } else {
+          displayContent = await response.text();
+        }
+        const escapeHtml = (s) => (s+"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+        const statusClass = response.ok ? 'success' : 'error';
+        responseArea.innerHTML = '<span class="response-status ' + statusClass + '">HTTP ' + response.status + '</span>\n' + escapeHtml(displayContent);
+        responseArea.style.display = 'block';
+      } catch (error) {
+        responseArea.innerHTML = '<span class="response-status error">Error</span>\n' + error.message;
+        responseArea.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>
+)rawliteral";
+
 // 检查HTTP Basic认证
 bool checkAuth() {
   if (!server.authenticate(config.webUser.c_str(), config.webPass.c_str())) {
@@ -748,6 +1040,9 @@ void handleRoot() {
   html.replace("%SMTP_PASS%", config.smtpPass);
   html.replace("%SMTP_SEND_TO%", config.smtpSendTo);
   html.replace("%ADMIN_PHONE%", config.adminPhone);
+  html.replace("%WIFI_SSID%", config.wifiSSID);
+  html.replace("%WIFI_PASS%", config.wifiPass);
+  html.replace("%NUMBER_BLACK_LIST%", config.numberBlackList);
 
   // 生成推送通道HTML
   String channelsHtml = "";
@@ -808,10 +1103,16 @@ void handleRoot() {
     // 自定义模板区域
     channelsHtml += "<div id=\"custom" + idx + "\" style=\"display:none;\">";
     channelsHtml += "<div class=\"form-group\">";
-    channelsHtml += "<label>请求体模板（使用 {sender} {message} {timestamp} 占位符）</label>";
+    channelsHtml += "<label>请求体模板（使用 {sender} {message} {timestamp} {device} 占位符）</label>";
     channelsHtml += "<textarea name=\"push" + idx + "body\" rows=\"4\" style=\"width:100%;font-family:monospace;\">" + config.pushChannels[i].customBody + "</textarea>";
     channelsHtml += "</div>";
     channelsHtml += "</div>";
+
+    channelsHtml += "</div>";
+
+    // 测试按钮
+    channelsHtml += "<button type=\"button\" class=\"btn-test\" id=\"testBtn" + idx + "\" onclick=\"testChannel(" + idx + ")\">🧪 测试</button>";
+    channelsHtml += "<div class=\"test-result\" id=\"testResult" + idx + "\"></div>";
 
     channelsHtml += "</div></div>";
   }
@@ -827,6 +1128,70 @@ void handleToolsPage() {
   String html = String(htmlToolsPage);
   html.replace("%IP%", WiFi.localIP().toString());
   server.send(200, "text/html", html);
+}
+
+// 处理API文档页面请求
+void handleApiDocs() {
+  if (!checkAuth()) return;
+
+  String html = String(htmlApiDocsPage);
+  html.replace("%IP%", WiFi.localIP().toString());
+  server.send(200, "text/html", html);
+}
+
+// 处理推送通道测试请求
+void handleTestPush() {
+  if (!checkAuth()) return;
+
+  // 从POST参数构造临时通道
+  PushChannel testCh;
+  testCh.enabled = true;
+  testCh.type = (PushType)server.arg("type").toInt();
+  testCh.url = server.arg("url");
+  testCh.key1 = server.arg("key1");
+  testCh.key2 = server.arg("key2");
+  testCh.customBody = server.arg("body");
+  testCh.name = "测试通道";
+
+  // 获取当前时间作为测试时间戳
+  String testTimestamp = "测试时间";
+  time_t now = time(nullptr);
+  if (now > 100000) {
+    struct tm timeinfo;
+    localtime_r(&now, &timeinfo);
+    char buf[32];
+    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &timeinfo);
+    testTimestamp = String(buf);
+  }
+
+  Serial.println("=== 推送通道测试 ===");
+  Serial.println("类型: " + String((int)testCh.type));
+  Serial.println("URL: " + testCh.url);
+
+  // 发送测试消息
+  int httpCode = sendToChannel(testCh, "测试发送者",
+    "🧪 这是一条来自【短信转发器】的测试消息，如果您收到此消息，说明推送通道配置正确！",
+    testTimestamp.c_str(), devicePhoneNumber.c_str());
+
+  // 构建响应JSON
+  String json = "{";
+  if (httpCode >= 200 && httpCode < 300) {
+    json += "\"success\":true,";
+    json += "\"message\":\"测试消息发送成功！(HTTP " + String(httpCode) + ")\"";
+  } else if (httpCode > 0) {
+    json += "\"success\":false,";
+    json += "\"message\":\"服务器返回错误 (HTTP " + String(httpCode) + ")，请检查配置\"";
+  } else if (httpCode == -1) {
+    json += "\"success\":false,";
+    json += "\"message\":\"配置不完整，请检查必填项\"";
+  } else {
+    json += "\"success\":false,";
+    json += "\"message\":\"请求失败 (" + String(httpCode) + ")，请检查URL是否正确\"";
+  }
+  json += "}";
+
+  server.send(200, "application/json", json);
+  Serial.println("=== 推送通道测试完成 ===");
 }
 
 // 发送AT命令并获取响应
@@ -1139,6 +1504,11 @@ void handleQuery() {
         int endIdx = resp.indexOf("\"", idx + 2);
         if (endIdx > idx) {
           phoneNum = resp.substring(idx + 2, endIdx);
+          // 更新全局本机号码缓存
+          if (devicePhoneNumber == "未知号码" && phoneNum.length() > 5) {
+            devicePhoneNumber = phoneNum;
+            Serial.println("查询已更新本机号码缓存: " + devicePhoneNumber);
+          }
         }
       }
     }
@@ -1534,6 +1904,16 @@ void handleSave() {
   config.smtpSendTo = server.arg("smtpSendTo");
   config.adminPhone = server.arg("adminPhone");
 
+  // WiFi配置（变更后重启）
+  String newSSID = server.arg("wifiSSID");
+  String newPass = server.arg("wifiPass");
+  bool wifiChanged = (newSSID != config.wifiSSID || newPass != config.wifiPass);
+  config.wifiSSID = newSSID;
+  config.wifiPass = newPass;
+
+  // 号码黑名单
+  config.numberBlackList = server.arg("numberBlackList");
+
   // 保存推送通道配置
   for (int i = 0; i < MAX_PUSH_CHANNELS; i++) {
     String idx = String(i);
@@ -1581,6 +1961,13 @@ void handleSave() {
     String subject = "短信转发器配置已更新";
     String body = "设备配置已更新\n设备地址: " + getDeviceUrl();
     sendEmailNotification(subject.c_str(), body.c_str());
+  }
+
+  // WiFi配置变更，需要重启
+  if (wifiChanged) {
+    Serial.println("WiFi配置已更改，即将重启...");
+    delay(2000);
+    ESP.restart();
   }
 }
 
@@ -1989,15 +2376,93 @@ String jsonEscape(const String& str) {
   return result;
 }
 
-// 发送单个推送通道
-void sendToChannel(const PushChannel& channel, const char* sender, const char* message, const char* timestamp) {
-  if (!channel.enabled) return;
+// 检查发送者是否在号码黑名单中
+bool isInNumberBlackList(const char* sender) {
+  if (config.numberBlackList.length() == 0) return false;
+
+  String senderStr = String(sender);
+  // 去除发送者号码的+86前缀
+  if (senderStr.startsWith("+86")) senderStr = senderStr.substring(3);
+
+  String list = config.numberBlackList;
+  int start = 0;
+  while (start <= (int)list.length()) {
+    int end = list.indexOf('\n', start);
+    if (end == -1) end = list.length();
+    String line = list.substring(start, end);
+    line.trim();
+    if (line.length() > 0 && line.equals(senderStr)) return true;
+    start = end + 1;
+  }
+  return false;
+}
+
+// 格式化时间戳：将 YYMMDDHHMMSS 转换为 YY/MM/DD HH:MM:SS
+String formatTimestamp(const char* timestamp) {
+  if (timestamp == nullptr || strlen(timestamp) < 12) {
+    return String(timestamp ? timestamp : "");
+  }
+  char formatted[20];
+  snprintf(formatted, sizeof(formatted), "%.2s/%.2s/%.2s %.2s:%.2s:%.2s",
+           timestamp,       // YY
+           timestamp + 2,   // MM
+           timestamp + 4,   // DD
+           timestamp + 6,   // HH
+           timestamp + 8,   // MM
+           timestamp + 10   // SS
+  );
+  return String(formatted);
+}
+
+// 提取验证码：从字符串中提取4位及以上的连续数字
+String extractVerifyCode(const char* text) {
+  if (text == nullptr) return "";
+  String result = "";
+  String currentNum = "";
+  for (int i = 0; text[i] != '\0'; i++) {
+    if (text[i] >= '0' && text[i] <= '9') {
+      currentNum += text[i];
+    } else {
+      if (currentNum.length() >= 4) { result = currentNum; break; }
+      currentNum = "";
+    }
+  }
+  if (result.length() == 0 && currentNum.length() >= 4) result = currentNum;
+  return result;
+}
+
+// 向钉钉发送纯文本（用于单独推送验证码）
+void sendTextToDingtalk(const PushChannel& channel, const String& text) {
+  if (channel.type != PUSH_TYPE_DINGTALK || channel.url.length() == 0) return;
+  HTTPClient http;
+  String webhookUrl = channel.url;
+  if (channel.key1.length() > 0) {
+    int64_t ts = getUtcMillis();
+    String sign = dingtalkSign(channel.key1, ts);
+    webhookUrl += (webhookUrl.indexOf('?') == -1 ? "?" : "&");
+    char tsBuf[21];
+    snprintf(tsBuf, sizeof(tsBuf), "%lld", ts);
+    webhookUrl += "timestamp=" + String(tsBuf) + "&sign=" + sign;
+  }
+  http.begin(webhookUrl);
+  http.addHeader("Content-Type", "application/json");
+  String jsonData = "{\"msgtype\":\"text\",\"text\":{\"content\":\"" + jsonEscape(text) + "\"}}";
+  Serial.println("钉钉验证码推送: " + jsonData);
+  int httpCode = http.POST(jsonData);
+  if (httpCode > 0) Serial.println("钉钉验证码响应码: " + String(httpCode));
+  else Serial.println("钉钉验证码推送失败: " + http.errorToString(httpCode));
+  http.end();
+}
+
+// 发送单个推送通道，返回HTTP状态码（>0表示有响应，-1表示跳过）
+int sendToChannel(const PushChannel& channel, const char* sender, const char* message, const char* timestamp, const char* devicePhone) {
+  if (!channel.enabled) return -1;
 
   // 对于某些推送方式，URL可以为空（使用默认URL）
   bool needUrl = (channel.type == PUSH_TYPE_POST_JSON || channel.type == PUSH_TYPE_BARK ||
                   channel.type == PUSH_TYPE_GET || channel.type == PUSH_TYPE_DINGTALK ||
                   channel.type == PUSH_TYPE_CUSTOM);
-  if (needUrl && channel.url.length() == 0) return;
+  if (needUrl && channel.url.length() == 0) return -1;
 
   HTTPClient http;
   String channelName = channel.name.length() > 0 ? channel.name : ("通道" + String(channel.type));
@@ -2006,7 +2471,8 @@ void sendToChannel(const PushChannel& channel, const char* sender, const char* m
   int httpCode = 0;
   String senderEscaped = jsonEscape(String(sender));
   String messageEscaped = jsonEscape(String(message));
-  String timestampEscaped = jsonEscape(String(timestamp));
+  String timestampEscaped = jsonEscape(formatTimestamp(timestamp));
+  String devicePhoneEscaped = jsonEscape(String(devicePhone ? devicePhone : ""));
 
   switch (channel.type) {
     case PUSH_TYPE_POST_JSON: {
@@ -2016,7 +2482,8 @@ void sendToChannel(const PushChannel& channel, const char* sender, const char* m
       String jsonData = "{";
       jsonData += "\"sender\":\"" + senderEscaped + "\",";
       jsonData += "\"message\":\"" + messageEscaped + "\",";
-      jsonData += "\"timestamp\":\"" + timestampEscaped + "\"";
+      jsonData += "\"timestamp\":\"" + timestampEscaped + "\",";
+      jsonData += "\"device\":\"" + devicePhoneEscaped + "\"";
       jsonData += "}";
       Serial.println("POST JSON: " + jsonData);
       httpCode = http.POST(jsonData);
@@ -2029,7 +2496,7 @@ void sendToChannel(const PushChannel& channel, const char* sender, const char* m
       http.addHeader("Content-Type", "application/json");
       String jsonData = "{";
       jsonData += "\"title\":\"" + senderEscaped + "\",";
-      jsonData += "\"body\":\"" + messageEscaped + "\"";
+      jsonData += "\"body\":\"" + messageEscaped + "\\n接收卡号: " + devicePhoneEscaped + "\"";
       jsonData += "}";
       Serial.println("BARK JSON: " + jsonData);
       httpCode = http.POST(jsonData);
@@ -2047,6 +2514,7 @@ void sendToChannel(const PushChannel& channel, const char* sender, const char* m
       getUrl += "sender=" + urlEncode(String(sender));
       getUrl += "&message=" + urlEncode(String(message));
       getUrl += "&timestamp=" + urlEncode(String(timestamp));
+      getUrl += "&device=" + urlEncode(String(devicePhone ? devicePhone : ""));
       Serial.println("GET URL: " + getUrl);
       http.begin(getUrl);
       httpCode = http.GET();
@@ -2076,10 +2544,22 @@ void sendToChannel(const PushChannel& channel, const char* sender, const char* m
       http.begin(webhookUrl);
       http.addHeader("Content-Type", "application/json");
       String jsonData = "{\"msgtype\":\"text\",\"text\":{\"content\":\"";
-      jsonData += "📱短信通知\\n发送者: " + senderEscaped + "\\n内容: " + messageEscaped + "\\n时间: " + timestampEscaped;
+      jsonData += "📱短信通知\\n发送者: " + senderEscaped + "\\n接收卡号: " + devicePhoneEscaped + "\\n内容: " + messageEscaped + "\\n时间: " + timestampEscaped;
       jsonData += "\"}}";
       Serial.println("钉钉: " + jsonData);
       httpCode = http.POST(jsonData);
+
+      // 验证码检测：自动提取并单独推送
+      {
+        String msgStr = String(message);
+        if (msgStr.indexOf("验证码") != -1 || msgStr.indexOf("验证") != -1) {
+          String code = extractVerifyCode(message);
+          if (code.length() > 0) {
+            Serial.println("检测到验证码: " + code);
+            sendTextToDingtalk(channel, code);
+          }
+        }
+      }
       break;
     }
 
@@ -2101,7 +2581,7 @@ void sendToChannel(const PushChannel& channel, const char* sender, const char* m
       String jsonData = "{";
       jsonData += "\"token\":\"" + channel.key1 + "\",";
       jsonData += "\"title\":\"短信来自: " + senderEscaped + "\",";
-      jsonData += "\"content\":\"<b>发送者:</b> " + senderEscaped + "<br><b>时间:</b> " + timestampEscaped + "<br><b>内容:</b><br>" + messageEscaped + "\",";
+      jsonData += "\"content\":\"<b>发送者:</b> " + senderEscaped + "<br><b>接收卡号:</b> " + devicePhoneEscaped + "<br><b>时间:</b> " + timestampEscaped + "<br><b>内容:</b><br>" + messageEscaped + "\",";
       jsonData += "\"channel\":\"" + channelValue + "\"";
       jsonData += "}";
       Serial.println("PushPlus: " + jsonData);
@@ -2115,7 +2595,7 @@ void sendToChannel(const PushChannel& channel, const char* sender, const char* m
       http.begin(scUrl);
       http.addHeader("Content-Type", "application/x-www-form-urlencoded");
       String postData = "title=" + urlEncode("短信来自: " + String(sender));
-      postData += "&desp=" + urlEncode("**发送者:** " + String(sender) + "\n\n**时间:** " + String(timestamp) + "\n\n**内容:**\n\n" + String(message));
+      postData += "&desp=" + urlEncode("**发送者:** " + String(sender) + "\n\n**接收卡号:** " + String(devicePhone ? devicePhone : "") + "\n\n**时间:** " + String(timestamp) + "\n\n**内容:**\n\n" + String(message));
       Serial.println("Server酱: " + postData);
       httpCode = http.POST(postData);
       break;
@@ -2125,7 +2605,7 @@ void sendToChannel(const PushChannel& channel, const char* sender, const char* m
       // 自定义模板
       if (channel.customBody.length() == 0) {
         Serial.println("自定义模板为空，跳过");
-        return;
+        return -1;
       }
       http.begin(channel.url);
       http.addHeader("Content-Type", "application/json");
@@ -2133,6 +2613,7 @@ void sendToChannel(const PushChannel& channel, const char* sender, const char* m
       body.replace("{sender}", senderEscaped);
       body.replace("{message}", messageEscaped);
       body.replace("{timestamp}", timestampEscaped);
+      body.replace("{device}", devicePhoneEscaped);
       Serial.println("自定义: " + body);
       httpCode = http.POST(body);
       break;
@@ -2166,7 +2647,7 @@ void sendToChannel(const PushChannel& channel, const char* sender, const char* m
       // 飞书消息体
       jsonData += "\"msg_type\":\"text\",";
       jsonData += "\"content\":{\"text\":\"";
-      jsonData += "📱短信通知\\n发送者: " + senderEscaped + "\\n内容: " + messageEscaped + "\\n时间: " + timestampEscaped;
+      jsonData += "📱短信通知\\n发送者: " + senderEscaped + "\\n接收卡号: " + devicePhoneEscaped + "\\n内容: " + messageEscaped + "\\n时间: " + timestampEscaped;
       jsonData += "\"}}";
 
       http.begin(webhookUrl);
@@ -2187,7 +2668,7 @@ void sendToChannel(const PushChannel& channel, const char* sender, const char* m
       http.addHeader("Content-Type", "application/json");
       String jsonData = "{";
       jsonData += "\"title\":\"短信来自: " + senderEscaped + "\",";
-      jsonData += "\"message\":\"" + messageEscaped + "\\n\\n时间: " + timestampEscaped + "\",";
+      jsonData += "\"message\":\"接收卡号: " + devicePhoneEscaped + "\\n\\n" + messageEscaped + "\\n\\n时间: " + timestampEscaped + "\",";
       jsonData += "\"priority\":5";
       jsonData += "}";
       Serial.println("Gotify: " + jsonData);
@@ -2207,7 +2688,7 @@ void sendToChannel(const PushChannel& channel, const char* sender, const char* m
 
       String jsonData = "{";
       jsonData += "\"chat_id\":\"" + channel.key1 + "\",";
-      String text = "📱短信通知\n发送者: " + senderEscaped + "\n内容: " + messageEscaped + "\n时间: " + timestampEscaped;
+      String text = "📱短信通知\n发送者: " + senderEscaped + "\n接收卡号: " + devicePhoneEscaped + "\n内容: " + messageEscaped + "\n时间: " + timestampEscaped;
       jsonData += "\"text\":\"" + text + "\"";
       jsonData += "}";
 
@@ -2218,7 +2699,7 @@ void sendToChannel(const PushChannel& channel, const char* sender, const char* m
 
     default:
       Serial.println("未知推送类型");
-      return;
+      return -1;
   }
 
   if (httpCode > 0) {
@@ -2231,6 +2712,7 @@ void sendToChannel(const PushChannel& channel, const char* sender, const char* m
     Serial.printf("[%s] HTTP请求失败: %s\n", channelName.c_str(), http.errorToString(httpCode).c_str());
   }
   http.end();
+  return httpCode;
 }
 
 // 发送短信到所有启用的推送通道
@@ -2256,7 +2738,7 @@ void sendSMSToServer(const char* sender, const char* message, const char* timest
   Serial.println("\n=== 开始多通道推送 ===");
   for (int i = 0; i < MAX_PUSH_CHANNELS; i++) {
     if (isPushChannelValid(config.pushChannels[i])) {
-      sendToChannel(config.pushChannels[i], sender, message, timestamp);
+      sendToChannel(config.pushChannels[i], sender, message, timestamp, devicePhoneNumber.c_str());
       delay(100); // 短暂延迟避免请求过快
     }
   }
@@ -2304,6 +2786,12 @@ void processSmsContent(const char* sender, const char* text, const char* timesta
   Serial.println("时间戳: " + String(timestamp));
   Serial.println("内容: " + String(text));
   Serial.println("====================");
+
+  // 检查是否在号码黑名单中
+  if (isInNumberBlackList(sender)) {
+    Serial.println("🚫 发送者在号码黑名单中，忽略该短信");
+    return;
+  }
 
   // 检查是否为管理员命令
   if (isAdmin(sender)) {
@@ -2543,15 +3031,39 @@ void setup() {
   Serial.println("网络已注册");
   // ========== 模组初始化完成 ==========
 
-  // 连接WiFi（支持隐藏SSID）
-  // 参数: ssid, password, channel(0=自动), bssid(nullptr=自动), connect(true=连接隐藏网络)
-  WiFi.begin(WIFI_SSID, WIFI_PASS, 0, nullptr, true);
-  Serial.println("连接wifi");
-  Serial.println(WIFI_SSID);
-  while (WiFi.status() != WL_CONNECTED) blink_short();
-  Serial.println("wifi已连接");
-  Serial.print("IP地址: ");
-  Serial.println(WiFi.localIP());
+  // 连接WiFi（优先使用NVS中保存的SSID，支持隐藏SSID，失败时开AP热点）
+  WiFi.mode(WIFI_STA);
+  String wifiSSID = config.wifiSSID.length() > 0 ? config.wifiSSID : String(WIFI_SSID);
+  String wifiPass = config.wifiPass.length() > 0 ? config.wifiPass : String(WIFI_PASS);
+  WiFi.begin(wifiSSID.c_str(), wifiPass.c_str(), 0, nullptr, true);
+  Serial.print("正在连接WiFi: ");
+  Serial.println(wifiSSID);
+
+  unsigned long startWifi = millis();
+  bool wifiConnected = false;
+  while (millis() - startWifi < 30000) {
+    if (WiFi.status() == WL_CONNECTED) {
+      wifiConnected = true;
+      break;
+    }
+    blink_short();
+    Serial.print(".");
+  }
+  Serial.println();
+
+  if (wifiConnected) {
+    Serial.println("WiFi连接成功");
+    Serial.print("IP地址: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("WiFi连接超时，启动AP模式...");
+    WiFi.disconnect();
+    WiFi.mode(WIFI_AP);
+    String apName = "SMS-Forwarder-AP";
+    WiFi.softAP(apName.c_str()); // 无密码开放热点
+    Serial.print("AP已启动: "); Serial.println(apName);
+    Serial.print("AP IP地址: "); Serial.println(WiFi.softAPIP());
+  }
 
   // NTP时间同步（获取UTC时间）
   Serial.println("正在同步NTP时间...");
@@ -2571,6 +3083,21 @@ void setup() {
     Serial.println("NTP时间同步失败，将使用设备时间");
   }
 
+  // 查询本机号码（SIM卡号）
+  {
+    String cnumResp = sendATCommand("AT+CNUM", 2000);
+    if (cnumResp.indexOf("+CNUM:") >= 0) {
+      int idx = cnumResp.indexOf(",\"");
+      if (idx >= 0) {
+        int endIdx = cnumResp.indexOf("\"", idx + 2);
+        if (endIdx > idx) {
+          devicePhoneNumber = cnumResp.substring(idx + 2, endIdx);
+        }
+      }
+    }
+    Serial.println("本机号码: " + devicePhoneNumber);
+  }
+
   // 启动HTTP服务器
   server.on("/", handleRoot);
   server.on("/save", HTTP_POST, handleSave);
@@ -2581,6 +3108,8 @@ void setup() {
   server.on("/query", handleQuery);
   server.on("/flight", handleFlightMode);
   server.on("/at", handleATCommand);
+  server.on("/test_push", HTTP_POST, handleTestPush);
+  server.on("/api-docs", handleApiDocs);
   server.begin();
   Serial.println("HTTP服务器已启动");
 
@@ -2605,6 +3134,23 @@ void loop() {
     if (millis() - lastPrintTime >= 1000) {
       lastPrintTime = millis();
       Serial.println("⚠️ 请访问 " + getDeviceUrl() + " 配置系统参数");
+    }
+  }
+
+  // 定期尝试获取本机号码（如果尚未获取到）
+  static unsigned long lastCnumCheck = 0;
+  if (devicePhoneNumber == "未知号码" && millis() - lastCnumCheck >= 60000) {
+    lastCnumCheck = millis();
+    String cnumResp = sendATCommand("AT+CNUM", 2000);
+    if (cnumResp.indexOf("+CNUM:") >= 0) {
+      int idx = cnumResp.indexOf(",\"");
+      if (idx >= 0) {
+        int endIdx = cnumResp.indexOf("\"", idx + 2);
+        if (endIdx > idx) {
+          devicePhoneNumber = cnumResp.substring(idx + 2, endIdx);
+          Serial.println("后台自动获取到本机号码: " + devicePhoneNumber);
+        }
+      }
     }
   }
 
