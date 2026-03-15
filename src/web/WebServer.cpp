@@ -34,6 +34,6 @@ void webServerInit() {
   server.onNotFound(handleNotFound);
 
   server.begin();
-  Serial.println("[Web] HTTP服务器已启动 (port 80)");
+  Serial.println("HTTP服务器已启动");
 }
 

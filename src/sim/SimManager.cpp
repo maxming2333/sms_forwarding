@@ -18,10 +18,10 @@ void blinkShort(unsigned long gapMs) {
 // ── Modem power control ───────────────────────────────────────────────────────
 void modemPowerCycle() {
   pinMode(MODEM_EN_PIN, OUTPUT);
-  Serial.println("[SIM] EN 拉低 - 关闭模组");
+  Serial.println("EN 拉低：关闭模组");
   digitalWrite(MODEM_EN_PIN, LOW);
   delay(1200);
-  Serial.println("[SIM] EN 拉高 - 启动模组");
+  Serial.println("EN 拉高：开启模组");
   digitalWrite(MODEM_EN_PIN, HIGH);
   delay(6000);  // wait for full boot
 }
@@ -127,7 +127,7 @@ bool initSIMDependent() {
       return false;
     }
   }
-  Serial.println("[SIM] CNMI OK");
+  Serial.println("CNMI参数设置完成");
 
   // Set PDU mode
   retry = 0;
@@ -138,7 +138,7 @@ bool initSIMDependent() {
       return false;
     }
   }
-  Serial.println("[SIM] PDU模式 OK");
+  Serial.println("PDU模式设置完成");
 
   // Wait for LTE registration (≤60 s)
   retry = 0;
@@ -154,10 +154,12 @@ bool initSIMDependent() {
       return false;
     }
   }
-  Serial.println("[SIM] 网络已注册");
+  Serial.println("网络已注册");
 
   // Query own number
+  Serial.println("尝试获取本机号码...");
   String cnumResp = sendATCommand("AT+CNUM", 2000);
+  Serial.println("CNUM响应: " + cnumResp);
   if (cnumResp.indexOf("+CNUM:") >= 0) {
     int a = cnumResp.indexOf(",\"");
     if (a >= 0) {
@@ -165,7 +167,11 @@ bool initSIMDependent() {
       if (b > a) devicePhoneNumber = cnumResp.substring(a + 2, b);
     }
   }
-  Serial.println("[SIM] 本机号码: " + devicePhoneNumber);
+  if (devicePhoneNumber == "未知号码" || devicePhoneNumber.length() == 0) {
+    Serial.println("无法获取本机号码，请手动配置");
+  } else {
+    Serial.println("本机号码: " + devicePhoneNumber);
+  }
 
   simInitialized = true;
   Serial.println("========== SIM卡初始化完成 ==========");

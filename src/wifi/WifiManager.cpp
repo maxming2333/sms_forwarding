@@ -22,17 +22,18 @@ void wifiInit(const String& ssid, const String& pass) {
   if (connected) {
     Serial.println("WiFi连接成功，IP: " + WiFi.localIP().toString());
   } else {
-    Serial.println("WiFi连接超时，启动AP热点...");
+    Serial.println("WiFi连接超时，启动AP模式...");
     WiFi.disconnect();
     WiFi.mode(WIFI_AP);
     WiFi.softAP("SMS-Forwarder-AP");
-    Serial.println("AP IP: " + WiFi.softAPIP().toString());
+    Serial.println("AP已启动: SMS-Forwarder-AP");
+    Serial.println("AP IP地址: " + WiFi.softAPIP().toString());
   }
 }
 
 // ── NTP ───────────────────────────────────────────────────────────────────────
 void ntpSync() {
-  Serial.println("正在同步NTP时间（UTC+8）...");
+  Serial.println("正在同步NTP时间...");
   configTime(8 * 3600, 0, "ntp.aliyun.com", "ntp.ntsc.ac.cn", "pool.ntp.org");
   int retry = 0;
   while (time(nullptr) < 100000 && retry++ < 100) delay(100);
@@ -42,7 +43,7 @@ void ntpSync() {
     char buf[32]; strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &ti);
     Serial.println("NTP同步成功，本地时间=" + String(buf));
   } else {
-    Serial.println("NTP同步失败，使用设备时间");
+    Serial.println("NTP时间同步失败，将使用设备时间");
   }
 }
 

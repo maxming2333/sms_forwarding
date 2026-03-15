@@ -39,15 +39,9 @@ void setup() {
     Serial.println("[Main] AT未响应，重试...");
     blinkShort();
   }
-  Serial.println("[Main] 模组AT响应正常");
+  Serial.println("模组AT响应正常");
 
-  simPresent = checkSIMPresent();
-  if (simPresent) {
-    Serial.println("[Main] ✅ 检测到SIM卡，开始初始化...");
-    initSIMDependent();
-  } else {
-    Serial.println("[Main] ⚠️ 未检测到SIM卡，等待插卡");
-  }
+  simPresent = initSIMDependent();
 
   String ssid = config.wifiSSID.length() > 0 ? config.wifiSSID : String(WIFI_SSID);
   String pass = config.wifiPass.length() > 0 ? config.wifiPass : String(WIFI_PASS);
