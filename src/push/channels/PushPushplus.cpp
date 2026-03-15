@@ -13,8 +13,8 @@ int pushPushplus(const PushChannel& ch, const char* sender, const char* msg, con
   http.begin(url);
   http.addHeader("Content-Type", "application/json");
   String body = "{\"token\":\"" + ch.key1
-    + "\",\"title\":\"短信来自: " + jsonEscape(sender)
-    + "\",\"content\":\"<b>发送者:</b> " + jsonEscape(sender)
+    + "\",\"title\":\"短信来自: " + jsonEscape(formatPhoneNumber(sender))
+    + "\",\"content\":\"<b>发送者:</b> " + jsonEscape(formatPhoneNumber(sender))
     + "<br><b>接收卡号:</b> " + jsonEscape(dev)
     + "<br><b>时间:</b> " + jsonEscape(formatTimestamp(ts))
     + "<br><b>内容:</b><br>" + jsonEscape(msg)

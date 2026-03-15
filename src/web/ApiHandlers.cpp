@@ -73,6 +73,8 @@ void handleGetConfig() {
   json += "\"wifiSSID\":\""    + jsonEscape(config.wifiSSID)     + "\",";
   json += "\"wifiPass\":\""    + jsonEscape(config.wifiPass)     + "\",";
   json += "\"numberBlackList\":\"" + jsonEscape(config.numberBlackList) + "\",";
+  json += "\"autoRebootEnabled\":" + String(config.autoRebootEnabled ? "true" : "false") + ",";
+  json += "\"autoRebootTime\":\""  + jsonEscape(config.autoRebootTime) + "\",";
   json += "\"pushChannels\":[";
   for (int i = 0; i < MAX_PUSH_CHANNELS; i++) {
     if (i) json += ",";
@@ -84,7 +86,8 @@ void handleGetConfig() {
     json += "\"url\":\""        + jsonEscape(c.url)                    + "\",";
     json += "\"key1\":\""       + jsonEscape(c.key1)                   + "\",";
     json += "\"key2\":\""       + jsonEscape(c.key2)                   + "\",";
-    json += "\"customBody\":\"" + jsonEscape(c.customBody)             + "\"";
+    json += "\"customBody\":\"" + jsonEscape(c.customBody)             + "\",";
+    json += "\"customCallBody\":\"" + jsonEscape(c.customCallBody)     + "\"";
     json += "}";
   }
   json += "]}";
@@ -110,6 +113,12 @@ void handlePostConfig() {
   config.adminPhone  = arg("adminPhone");
   config.numberBlackList = arg("numberBlackList");
 
+  // Scheduled reboot
+  String rebootEn = arg("autoRebootEnabled");
+  config.autoRebootEnabled = (rebootEn == "true" || rebootEn == "on" || rebootEn == "1");
+  String rebootTime = arg("autoRebootTime");
+  config.autoRebootTime = rebootTime.length() > 0 ? rebootTime : "03:00";
+
   String oldSSID = config.wifiSSID, oldPass = config.wifiPass;
   config.wifiSSID = arg("wifiSSID");
   config.wifiPass = arg("wifiPass");
@@ -125,7 +134,8 @@ void handlePostConfig() {
     config.pushChannels[i].name       = arg("push" + idx + "name");
     config.pushChannels[i].key1       = arg("push" + idx + "key1");
     config.pushChannels[i].key2       = arg("push" + idx + "key2");
-    config.pushChannels[i].customBody = arg("push" + idx + "body");
+    config.pushChannels[i].customBody     = arg("push" + idx + "body");
+    config.pushChannels[i].customCallBody = arg("push" + idx + "cbody");
     if (!config.pushChannels[i].name.length())
       config.pushChannels[i].name = "通道" + String(i + 1);
   }

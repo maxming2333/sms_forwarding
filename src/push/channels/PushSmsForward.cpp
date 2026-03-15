@@ -6,7 +6,7 @@
 int pushSmsForward(const PushChannel& ch, const char* sender, const char* msg, const char* ts, const char* dev) {
   String phone = ch.url;
   phone.trim();
-  String content = "📱短信通知\n发送者: " + String(sender)
+  String content = "📱短信通知\n发送者: " + formatPhoneNumber(sender)
                  + "\n接收卡号: "          + String(dev)
                  + "\n内容: "             + String(msg)
                  + "\n时间: "             + formatTimestamp(ts);

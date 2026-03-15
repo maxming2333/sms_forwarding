@@ -3,7 +3,7 @@
 #include "sim/SimManager.h"
 #include <WiFi.h>
 
-// ── Single channel dispatch ───────────────────────────────────────────────────
+// ── Single SMS channel dispatch ───────────────────────────────────────────────
 int pushOne(const PushChannel& ch, const char* sender, const char* msg,
             const char* ts, const char* dev) {
   if (!ch.enabled) return -1;
@@ -40,7 +40,7 @@ int pushOne(const PushChannel& ch, const char* sender, const char* msg,
   return code;
 }
 
-// ── All channels dispatch ─────────────────────────────────────────────────────
+// ── All SMS channels dispatch ─────────────────────────────────────────────────
 void pushAll(const char* sender, const char* msg, const char* ts) {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("[Push] WiFi未连接，跳过推送");
@@ -54,5 +54,33 @@ void pushAll(const char* sender, const char* msg, const char* ts) {
     }
   }
   Serial.println("=== 推送完成 ===\n");
+}
+
+// ── Single call channel dispatch ──────────────────────────────────────────────
+int pushCallOne(const PushChannel& ch, const char* caller,
+                const char* ts, const char* dev) {
+  if (!ch.enabled) return -1;
+  String name = ch.name.length() > 0 ? ch.name : ("通道" + String((int)ch.type));
+  Serial.println("[PushCall] 发送来电到通道: " + name);
+  int code = pushCall(ch, caller, ts, dev);
+  if (code > 0) Serial.printf("[PushCall] [%s] HTTP %d\n", name.c_str(), code);
+  else          Serial.printf("[PushCall] [%s] 结果: %d\n", name.c_str(), code);
+  return code;
+}
+
+// ── All call channels dispatch ────────────────────────────────────────────────
+void pushCallAll(const char* caller, const char* ts) {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("[PushCall] WiFi未连接，跳过来电推送");
+    return;
+  }
+  Serial.println("\n=== 开始来电多通道推送 ===");
+  for (int i = 0; i < MAX_PUSH_CHANNELS; i++) {
+    if (isPushChannelValid(config.pushChannels[i])) {
+      pushCallOne(config.pushChannels[i], caller, ts, devicePhoneNumber.c_str());
+      delay(100);
+    }
+  }
+  Serial.println("=== 来电推送完成 ===\n");
 }
 

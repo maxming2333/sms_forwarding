@@ -2,6 +2,7 @@
 // main.cpp — entry point only; all logic is in src/ modules
 // ============================================================
 #include <Arduino.h>
+#include <esp_task_wdt.h>      // Hardware watchdog
 #include "config/AppConfig.h"
 #include "wifi/WifiManager.h"
 #include "sim/SimManager.h"
@@ -10,6 +11,7 @@
 #include "email/EmailNotifier.h"
 #include "push/PushManager.h"
 #include "web/WebServer.h"
+#include "scheduler/Scheduler.h"
 #include "wifi_config.h"  // WIFI_SSID / WIFI_PASS defaults
 
 // ── Placeholders to satisfy old-code references (not used in new flow) ──────
@@ -59,9 +61,27 @@ void setup() {
   if (configValid && !simInitialized)
     emailNotify("短信转发器已启动（未检测到SIM卡）",
       ("设备已启动，未检测到SIM卡\n请插入SIM卡\n设备地址: " + getDeviceUrl()).c_str());
+
+  // ── Watchdog: 60 s timeout; if loop() stalls the ESP32 auto-reboots ───────
+  esp_task_wdt_init(60, true);  // 60 seconds, panic (reboot) on timeout
+  esp_task_wdt_add(NULL);       // add current task (loop) to WDT
+  Serial.println("[Main] 看门狗已启动 (60s)");
 }
 
 void loop() {
+  // Feed watchdog first — if anything below hangs >60 s the device reboots
+  esp_task_wdt_reset();
+
+  // WiFi keepalive
+  if (WiFi.status() != WL_CONNECTED) {
+    static unsigned long lastReconnect = 0;
+    if (millis() - lastReconnect > 10000) {
+      lastReconnect = millis();
+      Serial.println("[Main] WiFi断开，尝试重连...");
+      WiFi.reconnect();
+    }
+  }
+
   webServerTick();
 
   if (!configValid) {
@@ -92,6 +112,7 @@ void loop() {
   }
 
   smsReceiverTick();
+  checkScheduledReboot();
 }
 
 // ── END OF FILE — remaining content below is the old monolithic code ─────────

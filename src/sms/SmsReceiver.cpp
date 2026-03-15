@@ -5,6 +5,7 @@
 #include "email/EmailNotifier.h"
 #include "sim/SimManager.h"
 #include "utils/Utils.h"
+#include <time.h>
 // NOTE: do NOT include <pdulib.h> directly here — SmsSender.h already pulls it in,
 //       and pdulib lacks include guards, causing struct redefinition errors.
 
@@ -142,6 +143,31 @@ void processSmsContent(const char* sender, const char* text, const char* timesta
   emailNotify(subject.c_str(), body.c_str());
 }
 
+// ── Incoming call processing ──────────────────────────────────────────────────
+static unsigned long lastCallNotifyTime = 0;
+static String        lastCallNumber     = "";
+
+void processIncomingCall(const char* caller) {
+  // Build timestamp string from local time (NTP, UTC+8)
+  String timeStr = "未知时间";
+  struct tm ti;
+  if (getLocalTime(&ti)) {
+    char buf[20]; strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &ti);
+    timeStr = String(buf);
+  }
+
+  Serial.println("[SmsRx] === 来电通知 ===");
+  Serial.println("  来电号码: " + String(caller));
+  Serial.println("  时间:     " + timeStr);
+
+  pushCallAll(caller, timeStr.c_str());
+
+  String fmtCaller = formatPhoneNumber(caller);
+  String subject   = "来电提醒: " + fmtCaller;
+  String body      = "收到来电\n来电号码: " + fmtCaller + "\n时间: " + timeStr;
+  emailNotify(subject.c_str(), body.c_str());
+}
+
 // ── Serial line reader ────────────────────────────────────────────────────────
 static String readSerialLine() {
   static char buf[SERIAL_BUFFER_SIZE];
@@ -182,7 +208,35 @@ static void checkURC() {
   if (urcState == IDLE) {
     if (line.startsWith("+CMT:")) {
       urcState = WAIT_PDU;
-    } else if (line.indexOf("+CPIN:") >= 0) {
+    }
+    // ── Incoming call URC: +CLCC: idx,dir,4(ringing),mode,mpty,"number",type,""
+    else if (line.startsWith("+CLCC:") && line.indexOf(",4,") >= 0) {
+      Serial.println("[SmsRx] 检测到来电: " + line);
+      // Parse caller number from the first quoted field
+      int q1 = line.indexOf('"');
+      int q2 = (q1 >= 0) ? line.indexOf('"', q1 + 1) : -1;
+      String callerNumber = "未知号码";
+      if (q1 >= 0 && q2 > q1) {
+        callerNumber = line.substring(q1 + 1, q2);
+        // type=145 means international format (add + prefix if missing)
+        String afterQ = line.substring(q2 + 1);
+        int comma = afterQ.indexOf(',');
+        String typeStr = (comma >= 0) ? afterQ.substring(1, comma) : afterQ.substring(1);
+        typeStr.trim();
+        if (typeStr.toInt() == 145 && !callerNumber.startsWith("+"))
+          callerNumber = "+" + callerNumber;
+      }
+      // Dedup: same number within 30 s → skip
+      unsigned long now = millis();
+      if (callerNumber != lastCallNumber || (now - lastCallNotifyTime) >= CALL_NOTIFY_INTERVAL_MS) {
+        lastCallNumber     = callerNumber;
+        lastCallNotifyTime = now;
+        processIncomingCall(callerNumber.c_str());
+      } else {
+        Serial.println("[SmsRx] 来电防重复，跳过");
+      }
+    }
+    else if (line.indexOf("+CPIN:") >= 0) {
       bool ready = (line.indexOf("READY") >= 0 && line.indexOf("NOT") < 0);
       if (ready && !simInitialized) {
         Serial.println("[SmsRx] URC SIM就绪，触发初始化");

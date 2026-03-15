@@ -8,7 +8,7 @@ int pushGotify(const PushChannel& ch, const char* sender, const char* msg, const
   if (!url.endsWith("/")) url += "/";
   url += "message?token=" + ch.key1;
 
-  String body = "{\"title\":\"短信来自: " + jsonEscape(sender)
+  String body = "{\"title\":\"短信来自: " + jsonEscape(formatPhoneNumber(sender))
     + "\",\"message\":\"接收卡号: " + jsonEscape(dev)
     + "\\n\\n" + jsonEscape(msg)
     + "\\n\\n时间: " + jsonEscape(formatTimestamp(ts))

@@ -1,7 +1,7 @@
 {
   "MAX_PUSH_CHANNELS": 5,
   "DEFAULT_WEB_USER": "admin",
-  "DEFAULT_WEB_PASS": "admin123",
+  "DEFAULT_WEB_PASS": "admin",
   "PUSH_TYPES": [
     {
       "key": "PUSH_TYPE_NONE",

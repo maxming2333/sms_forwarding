@@ -44,6 +44,25 @@
       </div>
     </div>
 
+    <!-- Scheduled reboot -->
+    <div class="card">
+      <div class="card-title">⏰ 计划任务</div>
+      <div class="form-group" style="display:flex;align-items:center;gap:10px">
+        <input type="checkbox" id="autoRebootEnabled" v-model="form.autoRebootEnabled"
+               style="width:auto;margin:0">
+        <label for="autoRebootEnabled" style="margin:0;font-weight:normal;cursor:pointer">
+          启用每日定时重启
+        </label>
+      </div>
+      <div class="form-group">
+        <label>重启时间（24小时制，北京时间）</label>
+        <input type="time" v-model="form.autoRebootTime">
+        <p style="font-size:12px;color:#888;margin:4px 0 0">
+          建议设置在深夜（如 03:00），重启时将同时复位 ESP32 和 4G 模组。
+        </p>
+      </div>
+    </div>
+
     <!-- Email -->
     <div class="card">
       <div class="card-title">📧 邮件通知设置</div>
@@ -124,7 +143,10 @@ const esp32 = window.__ESP32_DATA__ || {}
 const MAX_CH = esp32.MAX_PUSH_CHANNELS || 5
 
 function emptyChannel(i) {
-  return { enabled: false, type: 1, name: `通道${i+1}`, url: '', key1: '', key2: '', customBody: '' }
+  return {
+    enabled: false, type: 1, name: `通道${i+1}`,
+    url: '', key1: '', key2: '', customBody: '', customCallBody: ''
+  }
 }
 
 const status  = ref(null)
@@ -137,6 +159,8 @@ const form = reactive({
   smtpServer: '', smtpPort: 465, smtpUser: '', smtpPass: '', smtpSendTo: '',
   adminPhone: '',
   numberBlackList: '',
+  autoRebootEnabled: false,
+  autoRebootTime: '03:00',
   pushChannels: Array.from({ length: MAX_CH }, (_, i) => emptyChannel(i))
 })
 
@@ -145,15 +169,17 @@ onMounted(async () => {
     status.value = await api.getStatus()
     const cfg    = await api.getConfig()
     if (!cfg) return
-    Object.assign(form, {
-      webUser: cfg.webUser || '', webPass: cfg.webPass || '',
-      wifiSSID: cfg.wifiSSID || '', wifiPass: cfg.wifiPass || '',
-      smtpServer: cfg.smtpServer || '', smtpPort: cfg.smtpPort || 465,
-      smtpUser: cfg.smtpUser || '', smtpPass: cfg.smtpPass || '',
-      smtpSendTo: cfg.smtpSendTo || '',
-      adminPhone: cfg.adminPhone || '',
-      numberBlackList: cfg.numberBlackList || '',
-    })
+      Object.assign(form, {
+        webUser: cfg.webUser || '', webPass: cfg.webPass || '',
+        wifiSSID: cfg.wifiSSID || '', wifiPass: cfg.wifiPass || '',
+        smtpServer: cfg.smtpServer || '', smtpPort: cfg.smtpPort || 465,
+        smtpUser: cfg.smtpUser || '', smtpPass: cfg.smtpPass || '',
+        smtpSendTo: cfg.smtpSendTo || '',
+        adminPhone: cfg.adminPhone || '',
+        numberBlackList: cfg.numberBlackList || '',
+        autoRebootEnabled: cfg.autoRebootEnabled || false,
+        autoRebootTime: cfg.autoRebootTime || '03:00',
+      })
     if (cfg.pushChannels?.length) {
       form.pushChannels = cfg.pushChannels.map((c, i) => ({
         ...emptyChannel(i), ...c
@@ -176,15 +202,18 @@ async function save() {
       smtpSendTo: form.smtpSendTo,
       adminPhone: form.adminPhone,
       numberBlackList: form.numberBlackList,
+      autoRebootEnabled: form.autoRebootEnabled ? 'true' : 'false',
+      autoRebootTime: form.autoRebootTime,
     }
     form.pushChannels.forEach((ch, i) => {
-      data[`push${i}en`]   = ch.enabled ? 'on' : ''
-      data[`push${i}type`] = ch.type
-      data[`push${i}name`] = ch.name
-      data[`push${i}url`]  = ch.url
-      data[`push${i}key1`] = ch.key1
-      data[`push${i}key2`] = ch.key2
-      data[`push${i}body`] = ch.customBody
+      data[`push${i}en`]    = ch.enabled ? 'on' : ''
+      data[`push${i}type`]  = ch.type
+      data[`push${i}name`]  = ch.name
+      data[`push${i}url`]   = ch.url
+      data[`push${i}key1`]  = ch.key1
+      data[`push${i}key2`]  = ch.key2
+      data[`push${i}body`]  = ch.customBody
+      data[`push${i}cbody`] = ch.customCallBody
     })
     const res = await api.saveConfig(data)
     saveMsg.value = { ok: res?.success, text: res?.message || '保存成功' }

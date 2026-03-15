@@ -24,7 +24,7 @@ int pushDingtalk(const PushChannel& ch, const char* sender, const char* msg, con
     webhookUrl += "timestamp=" + String(buf) + "&sign=" + sign;
   }
 
-  String content = "📱短信通知\\n发送者: " + jsonEscape(sender)
+  String content = "📱短信通知\\n发送者: " + jsonEscape(formatPhoneNumber(sender))
                  + "\\n接收卡号: "         + jsonEscape(dev)
                  + "\\n内容: "             + jsonEscape(msg)
                  + "\\n时间: "             + jsonEscape(formatTimestamp(ts));

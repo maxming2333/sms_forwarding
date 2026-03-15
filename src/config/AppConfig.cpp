@@ -20,16 +20,19 @@ void saveConfig() {
   prefs.putString("wifiSSID",   config.wifiSSID);
   prefs.putString("wifiPass",   config.wifiPass);
   prefs.putString("numBlkList", config.numberBlackList);
+  prefs.putBool  ("rebootEn",   config.autoRebootEnabled);
+  prefs.putString("rebootTime", config.autoRebootTime);
 
   for (int i = 0; i < MAX_PUSH_CHANNELS; i++) {
     String p = "push" + String(i);
-    prefs.putBool  ((p + "en"  ).c_str(), config.pushChannels[i].enabled);
-    prefs.putUChar ((p + "type").c_str(), (uint8_t)config.pushChannels[i].type);
-    prefs.putString((p + "url" ).c_str(), config.pushChannels[i].url);
-    prefs.putString((p + "name").c_str(), config.pushChannels[i].name);
-    prefs.putString((p + "k1"  ).c_str(), config.pushChannels[i].key1);
-    prefs.putString((p + "k2"  ).c_str(), config.pushChannels[i].key2);
-    prefs.putString((p + "body").c_str(), config.pushChannels[i].customBody);
+    prefs.putBool  ((p + "en"   ).c_str(), config.pushChannels[i].enabled);
+    prefs.putUChar ((p + "type" ).c_str(), (uint8_t)config.pushChannels[i].type);
+    prefs.putString((p + "url"  ).c_str(), config.pushChannels[i].url);
+    prefs.putString((p + "name" ).c_str(), config.pushChannels[i].name);
+    prefs.putString((p + "k1"   ).c_str(), config.pushChannels[i].key1);
+    prefs.putString((p + "k2"   ).c_str(), config.pushChannels[i].key2);
+    prefs.putString((p + "body" ).c_str(), config.pushChannels[i].customBody);
+    prefs.putString((p + "cbody").c_str(), config.pushChannels[i].customCallBody);
   }
   prefs.end();
   Serial.println("配置已保存");
@@ -49,16 +52,19 @@ void loadConfig() {
   config.wifiSSID        = prefs.getString("wifiSSID",   WIFI_SSID);
   config.wifiPass        = prefs.getString("wifiPass",   WIFI_PASS);
   config.numberBlackList = prefs.getString("numBlkList", "");
+  config.autoRebootEnabled = prefs.getBool  ("rebootEn",   false);
+  config.autoRebootTime    = prefs.getString("rebootTime", "03:00");
 
   for (int i = 0; i < MAX_PUSH_CHANNELS; i++) {
     String p = "push" + String(i);
-    config.pushChannels[i].enabled    = prefs.getBool  ((p + "en"  ).c_str(), false);
-    config.pushChannels[i].type       = (PushType)prefs.getUChar((p + "type").c_str(), PUSH_TYPE_POST_JSON);
-    config.pushChannels[i].url        = prefs.getString((p + "url" ).c_str(), "");
-    config.pushChannels[i].name       = prefs.getString((p + "name").c_str(), "通道" + String(i + 1));
-    config.pushChannels[i].key1       = prefs.getString((p + "k1"  ).c_str(), "");
-    config.pushChannels[i].key2       = prefs.getString((p + "k2"  ).c_str(), "");
-    config.pushChannels[i].customBody = prefs.getString((p + "body").c_str(), "");
+    config.pushChannels[i].enabled        = prefs.getBool  ((p + "en"   ).c_str(), false);
+    config.pushChannels[i].type           = (PushType)prefs.getUChar((p + "type").c_str(), PUSH_TYPE_POST_JSON);
+    config.pushChannels[i].url            = prefs.getString((p + "url"  ).c_str(), "");
+    config.pushChannels[i].name           = prefs.getString((p + "name" ).c_str(), "通道" + String(i + 1));
+    config.pushChannels[i].key1           = prefs.getString((p + "k1"   ).c_str(), "");
+    config.pushChannels[i].key2           = prefs.getString((p + "k2"   ).c_str(), "");
+    config.pushChannels[i].customBody     = prefs.getString((p + "body" ).c_str(), "");
+    config.pushChannels[i].customCallBody = prefs.getString((p + "cbody").c_str(), "");
   }
 
   // Migrate legacy single-channel config (httpUrl) → channel 0

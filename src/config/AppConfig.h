@@ -36,7 +36,8 @@ struct PushChannel {
   String   url;
   String   key1;
   String   key2;
-  String   customBody;
+  String   customBody;      // SMS template: {sender} {message} {timestamp} {device}
+  String   customCallBody;  // Call template: {caller} {caller_fmt} {timestamp} {receiver}
 };
 
 struct Config {
@@ -52,6 +53,9 @@ struct Config {
   String      wifiSSID;
   String      wifiPass;
   String      numberBlackList;
+  // ── Scheduled reboot ───────────────────────────────────────────────────────
+  bool        autoRebootEnabled;  // enable daily scheduled reboot
+  String      autoRebootTime;     // "HH:MM" in local time (UTC+8)
 };
 
 // ── Global instances (defined in AppConfig.cpp) ──────────────────────────────

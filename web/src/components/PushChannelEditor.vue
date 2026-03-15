@@ -48,10 +48,29 @@
 
       <!-- Custom body -->
       <div v-if="typeInfo?.showCustomBody" class="form-group">
-        <label>请求体模板（使用 {sender} {message} {timestamp} {device} 占位符）</label>
+        <label>请求体模板（使用 {sender} {sender_fmt} {message} {timestamp} {device} 占位符）</label>
         <textarea v-model="local.customBody" rows="4"
                   style="font-family:monospace;font-size:13px"
                   placeholder='{"key":"{sender}","value":"{message}"}'></textarea>
+      </div>
+
+      <!-- Call notification template (available for all types) -->
+      <div class="form-group" style="margin-top:10px">
+        <details>
+          <summary style="cursor:pointer;color:#666;font-size:13px;user-select:none">
+            📞 来电通知独立模板（可选，点击展开）
+          </summary>
+          <div style="margin-top:8px">
+            <p style="font-size:12px;color:#888;margin:0 0 6px">
+              留空则使用各推送类型内置格式。占位符：
+              <code>{caller}</code> <code>{caller_fmt}</code>
+              <code>{timestamp}</code> <code>{receiver}</code>
+            </p>
+            <textarea v-model="local.customCallBody" rows="3"
+                      style="font-family:monospace;font-size:12px;width:100%"
+                      placeholder='{"title":"📞来电通知","body":"来电：{caller_fmt}\n时间：{timestamp}"}'></textarea>
+          </div>
+        </details>
       </div>
 
       <!-- Test button -->
@@ -180,7 +199,7 @@ const pushTypes = (esp32.PUSH_TYPES || [])
   .map(pt => ({ ...pt, ...(PUSH_TYPE_UI[pt.key] || { label: pt.key }) }))
 
 // Local copy so edits are reactive
-const local = ref({ ...props.modelValue })
+const local = ref({ customCallBody: '', ...props.modelValue })
 
 // When local changes, emit to parent
 watch(local, v => emit('update:modelValue', { ...v }), { deep: true })
