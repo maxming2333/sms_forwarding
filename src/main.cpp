@@ -39,7 +39,7 @@ void setup() {
     Serial.println("[Main] AT未响应，重试...");
     blinkShort();
   }
-  Serial.println("模组AT响应正常");
+  Serial.println("[Main] 模组AT响应正常");
 
   simPresent = initSIMDependent();
 

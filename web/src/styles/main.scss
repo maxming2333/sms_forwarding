@@ -80,6 +80,31 @@ body {
       border-bottom-color: $primary;
     }
   }
+
+  // ── Mobile responsive ──────────────────────────────────────────────────────
+  @media (max-width: 780px) {
+    flex-wrap: wrap;
+    padding: 0;
+
+    .nav-brand {
+      width: 100%;
+      text-align: center;
+      padding: 12px 16px 8px;
+      margin-right: 0;
+      border-bottom: 1px solid $border;
+    }
+
+    .nav-links {
+      width: 100%;
+      justify-content: center;
+      gap: 0;
+    }
+
+    .nav-link {
+      padding: 10px 14px;
+      font-size: 13px;
+    }
+  }
 }
 
 // ── Status bar ───────────────────────────────────────────────────────────────

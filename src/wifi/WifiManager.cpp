@@ -49,6 +49,9 @@ void ntpSync() {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 String getDeviceUrl() {
+  if (WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA) {
+    return "http://" + WiFi.softAPIP().toString() + "/";
+  }
   return "http://" + WiFi.localIP().toString() + "/";
 }
 
