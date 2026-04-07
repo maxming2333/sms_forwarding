@@ -7,7 +7,13 @@
 #define RXD           4
 #define MODEM_EN_PIN  5
 #ifndef LED_BUILTIN
-#  define LED_BUILTIN 8
+  #if defined(CONFIG_IDF_TARGET_ESP32C3)
+    #define LED_BUILTIN 8
+  #elif defined(CONFIG_IDF_TARGET_ESP32)
+    #define LED_BUILTIN 12
+  #else
+    #define LED_BUILTIN 2
+  #endif
 #endif
 
 // ── Web management defaults ──────────────────────────────────────────────────

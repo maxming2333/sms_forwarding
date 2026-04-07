@@ -12,7 +12,7 @@
 #include "push/PushManager.h"
 #include "web/WebServer.h"
 #include "scheduler/Scheduler.h"
-#include "wifi_config.h"  // WIFI_SSID / WIFI_PASS defaults
+#include "config/wifi_config.h"  // WIFI_SSID / WIFI_PASS defaults
 
 // ── Placeholders to satisfy old-code references (not used in new flow) ──────
 // (removed — all code now in modules)

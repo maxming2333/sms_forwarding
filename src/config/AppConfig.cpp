@@ -1,5 +1,5 @@
 #include "AppConfig.h"
-#include "wifi_config.h"   // WIFI_SSID / WIFI_PASS defaults (src/ is on include path)
+#include "config/wifi_config.h"   // WIFI_SSID / WIFI_PASS defaults (src/ is on include path)
 
 Config config;
 bool   configValid = false;
