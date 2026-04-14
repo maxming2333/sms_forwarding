@@ -94,17 +94,19 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           BUILD_DIR=".pio/build/makergo_esp32c3_supermini"
-          esptool --chip esp32c3 merge_bin \
-            --flash_mode qio --flash_freq 80m --flash_size 4MB \
-            -o "${BUILD_DIR}/main.bin" \
-            0x0      "${BUILD_DIR}/bootloader.bin" \
-            0x8000   "${BUILD_DIR}/partitions.bin" \
-            0x10000  "${BUILD_DIR}/firmware.bin"
+          # full.bin: 首次安装用（含 bootloader + 分区表，会清空 NVS）
           esptool --chip esp32c3 merge_bin \
             --flash_mode qio --flash_freq 80m --flash_size 4MB \
             -o "${BUILD_DIR}/full.bin" \
             0x0      "${BUILD_DIR}/bootloader.bin" \
             0x8000   "${BUILD_DIR}/partitions.bin" \
+            0x10000  "${BUILD_DIR}/firmware.bin" \
+            0x290000 "${BUILD_DIR}/littlefs.bin"
+          # update.bin: 升级用（从 0x10000 开始，跳过 NVS，保留 WiFi 等配置）
+          esptool --chip esp32c3 merge_bin \
+            --flash_mode qio --flash_freq 80m --flash_size 4MB \
+            --target-offset 0x10000 \
+            -o "${BUILD_DIR}/update.bin" \
             0x10000  "${BUILD_DIR}/firmware.bin" \
             0x290000 "${BUILD_DIR}/littlefs.bin"
 
@@ -113,7 +115,7 @@ jobs:
         run: |
           BUILD_DIR=".pio/build/makergo_esp32c3_supermini"
           HASH_FULL=$(sha256sum "${BUILD_DIR}/full.bin" | awk '{print $1}')
-          HASH_MAIN=$(sha256sum "${BUILD_DIR}/main.bin" | awk '{print $1}')
+          HASH_UPDATE=$(sha256sum "${BUILD_DIR}/update.bin" | awk '{print $1}')
           HASH_LITTLEFS=$(sha256sum "${BUILD_DIR}/littlefs.bin" | awk '{print $1}')
           cat > release_notes.md << EOF
           ## 固件版本: ${VERSION_TAG}
@@ -128,9 +130,9 @@ jobs:
 
           | 文件名 | 用途 | 烧录地址 |
           |--------|------|----------|
-          | full.bin | 全量固件（含 Web UI）一键烧录 | \`0x0\` |
-          | main.bin | 主固件（不含 Web UI） | \`0x0\` |
-          | littlefs.bin | Web UI 文件系统 | \`0x290000\` |
+          | full.bin | 首次安装（含 bootloader + Web UI，**会清空所有配置**） | \`0x0\` |
+          | update.bin | 固件升级（**保留 WiFi 等配置**，含 Web UI） | \`0x10000\` |
+          | littlefs.bin | 单独更新 Web UI 文件系统 | \`0x290000\` |
 
           ## 烧录说明
 
@@ -141,10 +143,13 @@ jobs:
           > 工具地址：https://thelastoutpostworkshop.github.io/ESPConnect/
           > 浏览器要求：Chrome 或 Edge（Firefox / Safari 不支持 Web Serial API）
 
-          步骤：
-          1. 用 USB 线连接设备，打开工具页面，点击「连接」，选择含 **USB JTAG/serial debug unit** 字样的串口，波特率选择 **460800**
-          2. 进入「闪存工具」→「烧录固件」
-          3. 上传下载的 \`full.bin\` 文件，点击开始烧录，等待完成提示
+          **首次安装**（新设备或需要重置配置）：
+          1. 连接设备，进入「闪存工具」→「烧录固件」，烧录地址填 \`0x0\`
+          2. 上传 \`full.bin\`，点击开始烧录
+
+          **固件升级**（保留 WiFi / 配置）：
+          1. 连接设备，进入「闪存工具」→「烧录固件」，烧录地址填 \`0x10000\`
+          2. 上传 \`update.bin\`，点击开始烧录
 
           ### 方式二：命令行烧录（esptool）
 
@@ -154,17 +159,17 @@ jobs:
           - 安装 esptool：\`pip install "esptool>=4.8"\`
             - Linux：若 \`esptool\` 不在 PATH，可改用 \`python -m esptool\`
 
-          **完整烧录**（推荐新装机，包含固件 + Web UI）：
+          **首次安装**（新设备或需要重置所有配置）：
           \`\`\`bash
           esptool --chip esp32c3 --baud 460800 write_flash 0x0 full.bin
           \`\`\`
 
-          **仅更新主固件**（保留已有 Web UI，适用于纯固件更新）：
+          **固件升级**（保留 WiFi 等配置，推荐日常更新）：
           \`\`\`bash
-          esptool --chip esp32c3 --baud 460800 write_flash 0x0 main.bin
+          esptool --chip esp32c3 --baud 460800 write_flash 0x10000 update.bin
           \`\`\`
 
-          **仅更新 Web UI**（保留已有固件，适用于前端样式更新）：
+          **仅更新 Web UI**（保留固件和配置）：
           \`\`\`bash
           esptool --chip esp32c3 --baud 460800 write_flash 0x290000 littlefs.bin
           \`\`\`
@@ -174,7 +179,7 @@ jobs:
           | 文件名 | SHA256 |
           |--------|--------|
           | full.bin | ${HASH_FULL} |
-          | main.bin | ${HASH_MAIN} |
+          | update.bin | ${HASH_UPDATE} |
           | littlefs.bin | ${HASH_LITTLEFS} |
           EOF
 
@@ -189,7 +194,7 @@ jobs:
           fail_on_unmatched_files: true
           files: |
             .pio/build/makergo_esp32c3_supermini/full.bin
-            .pio/build/makergo_esp32c3_supermini/main.bin
+            .pio/build/makergo_esp32c3_supermini/update.bin
             .pio/build/makergo_esp32c3_supermini/littlefs.bin
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
