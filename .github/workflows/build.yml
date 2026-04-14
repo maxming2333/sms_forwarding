@@ -88,13 +88,13 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           BUILD_DIR=".pio/build/makergo_esp32c3_supermini"
-          esptool.py --chip esp32c3 merge_bin \
+          esptool --chip esp32c3 merge_bin \
             --flash_mode qio --flash_freq 80m --flash_size 4MB \
             -o "${BUILD_DIR}/main.bin" \
             0x0      "${BUILD_DIR}/bootloader.bin" \
             0x8000   "${BUILD_DIR}/partitions.bin" \
             0x10000  "${BUILD_DIR}/firmware.bin"
-          esptool.py --chip esp32c3 merge_bin \
+          esptool --chip esp32c3 merge_bin \
             --flash_mode qio --flash_freq 80m --flash_size 4MB \
             -o "${BUILD_DIR}/full.bin" \
             0x0      "${BUILD_DIR}/bootloader.bin" \
@@ -109,9 +109,6 @@ jobs:
           HASH_FULL=$(sha256sum "${BUILD_DIR}/full.bin" | awk '{print $1}')
           HASH_MAIN=$(sha256sum "${BUILD_DIR}/main.bin" | awk '{print $1}')
           HASH_LITTLEFS=$(sha256sum "${BUILD_DIR}/littlefs.bin" | awk '{print $1}')
-          HASH_FIRMWARE=$(sha256sum "${BUILD_DIR}/firmware.bin" | awk '{print $1}')
-          HASH_BOOTLOADER=$(sha256sum "${BUILD_DIR}/bootloader.bin" | awk '{print $1}')
-          HASH_PARTITIONS=$(sha256sum "${BUILD_DIR}/partitions.bin" | awk '{print $1}')
           cat > release_notes.md << EOF
           ## 固件版本: ${VERSION_TAG}
 
@@ -128,37 +125,51 @@ jobs:
           | full.bin | 全量固件（含 Web UI）一键烧录 | \`0x0\` |
           | main.bin | 主固件（不含 Web UI） | \`0x0\` |
           | littlefs.bin | Web UI 文件系统 | \`0x290000\` |
-          | firmware.bin | 应用代码（原始产物） | \`0x10000\` |
-          | bootloader.bin | 引导加载程序（原始产物） | \`0x0\` |
-          | partitions.bin | 分区表（原始产物） | \`0x8000\` |
 
           ## 烧录说明
 
-          **完整烧录**（推荐新装机）：
+          ### 方式一：图形化烧录（推荐新手，零安装）
+
+          使用 **ESPConnect** 浏览器工具，无需安装任何软件：
+
+          > 工具地址：https://thelastoutpostworkshop.github.io/ESPConnect/
+          > 浏览器要求：Chrome 或 Edge（Firefox / Safari 不支持 Web Serial API）
+
+          步骤：
+          1. 用 USB 线连接设备，打开工具页面，点击「连接」，选择含 **USB JTAG/serial debug unit** 字样的串口，波特率选择 **460800**
+          2. 进入「闪存工具」→「烧录固件」
+          3. 上传下载的 \`full.bin\` 文件，点击开始烧录，等待完成提示
+
+          ### 方式二：命令行烧录（esptool）
+
+          **前置条件**：
+          - Python ≥ 3.7 — 下载：https://www.python.org/downloads/
+            - Windows：安装时勾选 **Add Python to PATH**
+          - 安装 esptool：\`pip install "esptool>=4.8"\`
+            - Linux：若 \`esptool\` 不在 PATH，可改用 \`python -m esptool\`
+
+          **完整烧录**（推荐新装机，包含固件 + Web UI）：
           \`\`\`bash
-          esptool.py --chip esp32c3 --baud 460800 write_flash 0x0 full.bin
+          esptool --chip esp32c3 --baud 460800 write_flash 0x0 full.bin
           \`\`\`
 
-          **仅更新主固件**（保留 Web UI）：
+          **仅更新主固件**（保留已有 Web UI，适用于纯固件更新）：
           \`\`\`bash
-          esptool.py --chip esp32c3 --baud 460800 write_flash 0x0 main.bin
+          esptool --chip esp32c3 --baud 460800 write_flash 0x0 main.bin
           \`\`\`
 
-          **仅更新 Web UI**（保留固件）：
+          **仅更新 Web UI**（保留已有固件，适用于前端样式更新）：
           \`\`\`bash
-          esptool.py --chip esp32c3 --baud 460800 write_flash 0x290000 littlefs.bin
+          esptool --chip esp32c3 --baud 460800 write_flash 0x290000 littlefs.bin
           \`\`\`
 
           ## SHA256 校验
 
-          \`\`\`
-          ${HASH_FULL}  full.bin
-          ${HASH_MAIN}  main.bin
-          ${HASH_LITTLEFS}  littlefs.bin
-          ${HASH_FIRMWARE}  firmware.bin
-          ${HASH_BOOTLOADER}  bootloader.bin
-          ${HASH_PARTITIONS}  partitions.bin
-          \`\`\`
+          | 文件名 | SHA256 |
+          |--------|--------|
+          | full.bin | ${HASH_FULL} |
+          | main.bin | ${HASH_MAIN} |
+          | littlefs.bin | ${HASH_LITTLEFS} |
           EOF
 
       - name: Publish GitHub Release
@@ -166,7 +177,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.VERSION_TAG }}
-          name: Release ${{ env.VERSION_TAG }}
+          name: ${{ env.VERSION_TAG }}
           body_path: release_notes.md
           make_latest: "true"
           fail_on_unmatched_files: true
@@ -174,9 +185,6 @@ jobs:
             .pio/build/makergo_esp32c3_supermini/full.bin
             .pio/build/makergo_esp32c3_supermini/main.bin
             .pio/build/makergo_esp32c3_supermini/littlefs.bin
-            .pio/build/makergo_esp32c3_supermini/firmware.bin
-            .pio/build/makergo_esp32c3_supermini/bootloader.bin
-            .pio/build/makergo_esp32c3_supermini/partitions.bin
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
