@@ -39,9 +39,15 @@ jobs:
           fi
           SHA_SHORT=$(git rev-parse --short=7 HEAD)
           FULL_SHA=$(git rev-parse HEAD)
+          YYYYMMDD=$(date -u +%Y%m%d)
+          HHmmss=$(date -u +%H%M%S)
+          APP_BUILD_TIMESTAMP="${YYYYMMDD}T${HHmmss}"
+          VERSION_TAG="${PREFIX}-${APP_BUILD_TIMESTAMP}-${SHA_SHORT}"
+          APP_VERSION="${PREFIX}-${SHA_SHORT}"
           TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          VERSION_TAG="${PREFIX}-${SHA_SHORT}"
           echo "VERSION_TAG=${VERSION_TAG}" >> $GITHUB_ENV
+          echo "APP_VERSION=${APP_VERSION}" >> $GITHUB_ENV
+          echo "APP_BUILD_TIMESTAMP=${APP_BUILD_TIMESTAMP}" >> $GITHUB_ENV
           echo "SHA_SHORT=${SHA_SHORT}" >> $GITHUB_ENV
           echo "FULL_SHA=${FULL_SHA}" >> $GITHUB_ENV
           echo "TIMESTAMP=${TIMESTAMP}" >> $GITHUB_ENV
