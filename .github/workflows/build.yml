@@ -95,8 +95,11 @@ jobs:
         run: |
           BUILD_DIR=".pio/build/makergo_esp32c3_supermini"
           # full.bin: 首次安装用（含 bootloader + 分区表，会清空 NVS）
+          # 使用 --flash_mode keep --flash_freq keep 避免覆盖 bootloader 内部已编译的
+          # flash 参数字节，防止使 ESP-IDF 附加的 SHA256 摘要失效（否则 ROM 校验失败
+          # 导致 ets_loader.c 78 崩溃并死循环重启）
           esptool --chip esp32c3 merge_bin \
-            --flash_mode qio --flash_freq 80m --flash_size 4MB \
+            --flash_mode keep --flash_freq keep --flash_size 4MB \
             -o "${BUILD_DIR}/full.bin" \
             0x0      "${BUILD_DIR}/bootloader.bin" \
             0x8000   "${BUILD_DIR}/partitions.bin" \
@@ -104,7 +107,7 @@ jobs:
             0x290000 "${BUILD_DIR}/littlefs.bin"
           # update.bin: 升级用（从 0x10000 开始，跳过 NVS，保留 WiFi 等配置）
           esptool --chip esp32c3 merge_bin \
-            --flash_mode qio --flash_freq 80m --flash_size 4MB \
+            --flash_mode keep --flash_freq keep --flash_size 4MB \
             --target-offset 0x10000 \
             -o "${BUILD_DIR}/update.bin" \
             0x10000  "${BUILD_DIR}/firmware.bin" \
