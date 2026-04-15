@@ -92,9 +92,9 @@
 ESP32-C3 与 ML307R/C/A 通过串口（UART）连接，接线如下：
 
 ```
-┌───────────────────────────────────────────────┐
-|                                               |
-|   ESP32-C3 Super Mini      ML307R/C/A核心板     |
+┌──────────────────────────────────────────────┐
+|                                              |
+|   ESP32-C3 Super Mini     ML307R/C/A核心板    |
 | ┌───────────────────┐    ┌─────────────────┐ |
 └─┼─ GPIO5 (MODEM_EN) │    │                 │ |
   │       GPIO3 (TX) ─┼───►│ RX              │ |
@@ -107,11 +107,11 @@ ESP32-C3 与 ML307R/C/A 通过串口（UART）连接，接线如下：
   │                   │    │                 │
   └───────────────────┘    └─────────────────┘
                            │                 │
-                           │  SIM卡槽        │
-                           │  (插入Nano SIM) │
+                           │  SIM卡槽         │
+                           │  (插入Nano SIM)  │
                            │                 │
-                           │  天线接口       │
-                           │  (连接4G天线)   │
+                           │  天线接口        │
+                           │  (连接4G天线)    │
                            └─────────────────┘
 ```
 
@@ -159,8 +159,8 @@ esptool --chip esp32c3 --baud 460800 write_flash 0x290000 littlefs.bin
 
 ## Maker Go ESP32-C3 Supermini 引脚定义
 
-- [makergo_ESP32-C3_supermini.json](boards/makergo_ESP32-C3_supermini.json)
-- [pins_arduino.h](custom_variants/super_mini_ESP32-C3/pins_arduino.h)
+- [makergo_esp32c3_supermini.json](boards/makergo_esp32c3_supermini.json)
+- [pins_arduino.h](custom_variants/super_mini_esp32c3/pins_arduino.h)
 
 ## 软件组成
 
