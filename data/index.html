@@ -156,6 +156,39 @@
         <button type="button" onclick="saveBlacklist()" style="background:#FF5722;">💾 保存黑名单</button>
         <div id="blacklistResult" style="display:none;margin-top:8px;padding:8px;border-radius:3px;"></div>
       </div>
+
+      <!-- 定时重启区块 -->
+      <div class="section" style="margin-top:20px;">
+        <div class="section-title">⏰ 定时重启</div>
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="rbEnabled"> 启用定时重启
+          </label>
+        </div>
+        <div class="form-group">
+          <label>重启模式</label>
+          <label style="font-weight:normal;"><input type="radio" name="rbMode" value="0" id="rbModeDaily" checked onchange="toggleRbMode()"> 每日定时</label>
+          &nbsp;&nbsp;
+          <label style="font-weight:normal;"><input type="radio" name="rbMode" value="1" id="rbModeInterval" onchange="toggleRbMode()"> 每隔 N 小时</label>
+        </div>
+        <div id="rbDailyGroup" class="form-group">
+          <label>重启时间（HH:MM）</label>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input type="number" id="rbHour" min="0" max="23" value="3" style="width:80px;padding:8px;border:1px solid #ddd;border-radius:5px;">
+            <span>时</span>
+            <input type="number" id="rbMinute" min="0" max="59" value="0" style="width:80px;padding:8px;border:1px solid #ddd;border-radius:5px;">
+            <span>分</span>
+          </div>
+          <div class="hint">需要 NTP 时间同步方可生效</div>
+        </div>
+        <div id="rbIntervalGroup" class="form-group" style="display:none;">
+          <label>间隔（小时，1~168）</label>
+          <input type="number" id="rbIntervalH" min="1" max="168" value="24" style="width:120px;padding:8px;border:1px solid #ddd;border-radius:5px;">
+          <div class="hint">从设备上电开始计时</div>
+        </div>
+        <button type="button" id="rbSaveBtn" onclick="saveReboot()" style="background:#FF9800;">💾 保存定时重启设置</button>
+        <div id="rbResult" style="display:none;margin-top:8px;padding:8px;border-radius:3px;"></div>
+      </div>
     </div>
   </div>
 
@@ -395,6 +428,17 @@
       for (var r = 0; r < radios.length; r++) {
         radios[r].checked = (parseInt(radios[r].value) === strategy);
       }
+
+      document.getElementById('rbEnabled').checked = !!data.rbEnabled;
+      if (data.rbMode === 1) {
+        document.getElementById('rbModeInterval').checked = true;
+      } else {
+        document.getElementById('rbModeDaily').checked = true;
+      }
+      toggleRbMode();
+      document.getElementById('rbHour').value      = data.rbHour      !== undefined ? data.rbHour      : 3;
+      document.getElementById('rbMinute').value    = data.rbMinute    !== undefined ? data.rbMinute    : 0;
+      document.getElementById('rbIntervalH').value = data.rbIntervalH !== undefined ? data.rbIntervalH : 24;
     }
 
     function loadConfig() {
@@ -583,6 +627,36 @@
         .catch(function(e) { showResult('blacklistResult', false, '请求失败: ' + e.message); });
     }
 
+    function toggleRbMode() {
+      var isInterval = document.getElementById('rbModeInterval').checked;
+      document.getElementById('rbDailyGroup').style.display    = isInterval ? 'none' : '';
+      document.getElementById('rbIntervalGroup').style.display = isInterval ? ''     : 'none';
+    }
+
+    function saveReboot() {
+      var btn = document.getElementById('rbSaveBtn');
+      btn.disabled = true;
+      showResult('rbResult', true, '正在保存...');
+
+      var form = new FormData();
+      if (document.getElementById('rbEnabled').checked) form.append('rbEnabled', 'on');
+      form.append('rbMode',      document.querySelector('input[name="rbMode"]:checked').value);
+      form.append('rbHour',      document.getElementById('rbHour').value);
+      form.append('rbMinute',    document.getElementById('rbMinute').value);
+      form.append('rbIntervalH', document.getElementById('rbIntervalH').value);
+
+      fetch('/api/reboot', { method: 'POST', body: form })
+        .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function(d) {
+          btn.disabled = false;
+          showResult('rbResult', !!d.ok, d.ok ? '定时重启设置已保存' : (d.error || '保存失败'));
+        })
+        .catch(function(e) {
+          btn.disabled = false;
+          showResult('rbResult', false, '请求失败: ' + e.message);
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', loadAll);
 
     function saveConfig(event) {
@@ -596,7 +670,7 @@
       var form = document.getElementById('configForm');
       var data = new FormData(form);
 
-      fetch('/save', { method: 'POST', body: data })
+      fetch('/api/save', { method: 'POST', body: data })
         .then(function(resp) {
           if (!resp.ok) throw new Error('HTTP ' + resp.status);
           return resp.json();

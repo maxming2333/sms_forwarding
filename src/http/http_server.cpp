@@ -70,12 +70,8 @@ void setupHttpServer(AsyncWebServer& server) {
     blacklistPostController);
 
   // Configuration save
-  server.on("/save", HTTP_POST, saveController);
-
-  // Legacy redirect: /sms -> /tools
-  server.on("/sms", HTTP_GET, [](AsyncWebServerRequest* request) {
-    request->redirect("/tools");
-  });
+  server.on("/api/save", HTTP_POST, saveController);
+  server.on("/api/reboot", HTTP_POST, saveRebootController);
 
   // Tool handlers
   server.on("/sendsms", HTTP_POST, sendSmsController);

@@ -156,37 +156,6 @@
       <div class="result-box" id="importResult"></div>
     </div>
 
-    <div class="section">
-      <div class="section-title">⏰ 定时重启</div>
-      <div class="form-group">
-        <label>
-          <input type="checkbox" id="rbEnabled"> 启用定时重启
-        </label>
-      </div>
-      <div class="form-group">
-        <label>重启模式</label>
-        <label><input type="radio" name="rbMode" value="0" id="rbModeDaily" checked onchange="toggleRbMode()"> 每日定时</label>
-        &nbsp;&nbsp;
-        <label><input type="radio" name="rbMode" value="1" id="rbModeInterval" onchange="toggleRbMode()"> 每隔 N 小时</label>
-      </div>
-      <div id="rbDailyGroup" class="form-group">
-        <label>重启时间（HH:MM）</label>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <input type="number" id="rbHour" min="0" max="23" value="3" style="width:80px;padding:8px;border:1px solid #ddd;border-radius:5px;">
-          <span>时</span>
-          <input type="number" id="rbMinute" min="0" max="59" value="0" style="width:80px;padding:8px;border:1px solid #ddd;border-radius:5px;">
-          <span>分</span>
-        </div>
-        <div class="hint">需要 NTP 时间同步方可生效</div>
-      </div>
-      <div id="rbIntervalGroup" class="form-group" style="display:none;">
-        <label>间隔（小时，1~168）</label>
-        <input type="number" id="rbIntervalH" min="1" max="168" value="24" style="width:120px;padding:8px;border:1px solid #ddd;border-radius:5px;">
-        <div class="hint">从设备上电开始计时</div>
-      </div>
-      <button type="button" id="rbSaveBtn" onclick="saveReboot()">💾 保存定时重启设置</button>
-      <div class="result-box" id="rbResult"></div>
-    </div>
 
   </div>
 
@@ -296,65 +265,6 @@
 
     function updateCount(el) {
       document.getElementById('charCount').textContent = el.value.length;
-    }
-
-    function toggleRbMode() {
-      var isInterval = document.getElementById('rbModeInterval').checked;
-      document.getElementById('rbDailyGroup').style.display    = isInterval ? 'none'  : '';
-      document.getElementById('rbIntervalGroup').style.display = isInterval ? ''      : 'none';
-    }
-
-    function loadConfig() {
-      fetch('/api/config/detail')
-        .then(function(r) { return r.json(); })
-        .then(function(d) {
-          document.getElementById('rbEnabled').checked = !!d.rbEnabled;
-          if (d.rbMode === 1) {
-            document.getElementById('rbModeInterval').checked = true;
-          } else {
-            document.getElementById('rbModeDaily').checked = true;
-          }
-          toggleRbMode();
-          document.getElementById('rbHour').value      = d.rbHour      !== undefined ? d.rbHour      : 3;
-          document.getElementById('rbMinute').value    = d.rbMinute    !== undefined ? d.rbMinute    : 0;
-          document.getElementById('rbIntervalH').value = d.rbIntervalH !== undefined ? d.rbIntervalH : 24;
-        })
-        .catch(function() {});
-    }
-
-    function saveReboot() {
-      var btn    = document.getElementById('rbSaveBtn');
-      var result = document.getElementById('rbResult');
-      btn.disabled = true;
-      result.className = 'result-box result-loading';
-      result.style.display = 'block';
-      result.textContent = '正在保存...';
-
-      var form = new FormData();
-      if (document.getElementById('rbEnabled').checked) form.append('rbEnabled', 'on');
-      var modeVal = document.querySelector('input[name="rbMode"]:checked').value;
-      form.append('rbMode', modeVal);
-      form.append('rbHour',      document.getElementById('rbHour').value);
-      form.append('rbMinute',    document.getElementById('rbMinute').value);
-      form.append('rbIntervalH', document.getElementById('rbIntervalH').value);
-
-      fetch('/save', { method: 'POST', body: form })
-        .then(function(r) { return r.json(); })
-        .then(function(d) {
-          btn.disabled = false;
-          if (d.ok) {
-            result.className = 'result-box result-success';
-            result.textContent = '✅ 定时重启设置已保存';
-          } else {
-            result.className = 'result-box result-error';
-            result.textContent = '❌ 保存失败';
-          }
-        })
-        .catch(function(e) {
-          btn.disabled = false;
-          result.className = 'result-box result-error';
-          result.textContent = '❌ 请求失败: ' + e.message;
-        });
     }
 
     function querySoc() {
@@ -650,7 +560,6 @@
     document.addEventListener('DOMContentLoaded', function() {
       loadStatus();
       loadSoc();
-      loadConfig();
     });
   </script>
 </body>
