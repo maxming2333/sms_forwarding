@@ -119,8 +119,7 @@ void configExportController(AsyncWebServerRequest* request) {
   if (now > 100000) {
     struct tm t;
     localtime_r(&now, &t);
-    snprintf(filename, sizeof(filename), "sms_config_%04d%02d%02d.json",
-             t.tm_year + 1900, t.tm_mon + 1, t.tm_mday);
+    snprintf(filename, sizeof(filename), "sms_config_%04d%02d%02d.json", t.tm_year + 1900, t.tm_mon + 1, t.tm_mday);
   }
 
   char disposition[80];
@@ -142,19 +141,24 @@ void configImportController(AsyncWebServerRequest* request, uint8_t* data,
                             size_t len, size_t index, size_t total) {
   if (total > 51200) {
     if (index == 0) {
-      request->send(400, "application/json",
-        "{\"ok\":false,\"error\":\"文件大小超过限制（最大50KB）\"}");
+      request->send(400, "application/json", "{\"ok\":false,\"error\":\"文件大小超过限制（最大50KB）\"}");
     }
     return;
   }
 
+  // 累积所有分块到 static 缓冲区
+  static String importBuf;
+  if (index == 0) {
+    importBuf = "";
+    importBuf.reserve(total);
+  }
+  importBuf.concat(reinterpret_cast<const char*>(data), len);
+
   if (index + len < total) return;
 
   JsonDocument doc;
-  if (deserializeJson(doc, data, len) != DeserializationError::Ok
-      || !doc.is<JsonObject>()) {
-    request->send(400, "application/json",
-      "{\"ok\":false,\"error\":\"JSON解析失败，请确认文件格式正确\"}");
+  if (deserializeJson(doc, importBuf) != DeserializationError::Ok || !doc.is<JsonObject>()) {
+    request->send(400, "application/json", "{\"ok\":false,\"error\":\"JSON解析失败，请确认文件格式正确\"}");
     return;
   }
 
@@ -211,8 +215,9 @@ void configImportController(AsyncWebServerRequest* request, uint8_t* data,
     }
     saveConfig();
     saveRebootSchedule(rebootSchedule);
-    request->send(200, "application/json",
-      "{\"ok\":true,\"message\":\"配置导入成功，请重启设备以生效\"}");
+    request->send(200, "application/json", "{\"ok\":true,\"message\":\"配置导入成功，设备将在2秒后自动重启\"}");
+    delay(2000);
+    ESP.restart();
     return;
   }
 
@@ -225,8 +230,7 @@ void configImportController(AsyncWebServerRequest* request, uint8_t* data,
                     || doc["blacklist"].is<JsonArray>()
                     || doc["reboot"].is<JsonObject>();
   if (!hasRecognized) {
-    request->send(400, "application/json",
-      "{\"ok\":false,\"error\":\"配置格式不兼容，未找到可识别的配置节\"}");
+    request->send(400, "application/json", "{\"ok\":false,\"error\":\"配置格式不兼容，未找到可识别的配置节\"}");
     return;
   }
 
@@ -253,8 +257,7 @@ void configImportController(AsyncWebServerRequest* request, uint8_t* data,
   if (doc["wifiList"].is<JsonArray>()) {
     JsonArray wArr = doc["wifiList"].as<JsonArray>();
     if ((int)wArr.size() > MAX_WIFI_ENTRIES) {
-      request->send(400, "application/json",
-        "{\"ok\":false,\"error\":\"wifiList 超过最大限制（5条）\"}");
+      request->send(400, "application/json", "{\"ok\":false,\"error\":\"wifiList 超过最大限制（5条）\"}");
       return;
     }
     int wCount = 0;
@@ -282,8 +285,7 @@ void configImportController(AsyncWebServerRequest* request, uint8_t* data,
   if (doc["pushChannels"].is<JsonArray>()) {
     JsonArray arr = doc["pushChannels"].as<JsonArray>();
     if ((int)arr.size() > MAX_PUSH_CHANNELS) {
-      request->send(400, "application/json",
-        "{\"ok\":false,\"error\":\"pushChannels 超过最大限制（10条）\"}");
+      request->send(400, "application/json", "{\"ok\":false,\"error\":\"pushChannels 超过最大限制（10条）\"}");
       return;
     }
     int i = 0;
