@@ -132,10 +132,10 @@ ESP32-C3 与 ML307R/C/A 通过串口（UART）连接，接线如下：
 pip install "esptool>=4.8"
 
 # 全量烧录（推荐，地址 0x0）
-esptool --chip ESP32-C3 --baud 921600 write_flash 0x0 full.bin
+esptool --chip esp32c3 --baud 921600 write_flash 0x0 full.bin
 
 # 单独更新 Web UI 文件系统（地址 0x290000）
-esptool --chip ESP32-C3 --baud 921600 write_flash 0x290000 littlefs.bin
+esptool --chip esp32c3 --baud 921600 write_flash 0x290000 littlefs.bin
 ```
 
 ### 固件文件说明
