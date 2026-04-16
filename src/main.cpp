@@ -13,6 +13,7 @@
 #include "push/push.h"
 #include "email/email.h"
 #include "http/http_server.h"
+#include "ota/ota_manager.h"
 
 // Serial port mapping
 #define TXD 3
@@ -101,6 +102,7 @@ void setup() {
   }
 
   setupHttpServer(server);
+  otaInit();
 
   digitalWrite(LED_BUILTIN, LOW);
 

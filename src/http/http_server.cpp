@@ -7,6 +7,7 @@
 #include "controllers/soc.h"
 #include "controllers/wifi.h"
 #include "controllers/blacklist.h"
+#include "controllers/ota.h"
 #include "config/config.h"
 #include "logger.h"
 #include <LittleFS.h>
@@ -86,6 +87,15 @@ void setupHttpServer(AsyncWebServer& server) {
     [](AsyncWebServerRequest* request) {},
     nullptr,
     resetConfigController);
+
+  // OTA upgrade API
+  server.on("/api/ota/status",  HTTP_GET,  otaStatusController);
+  server.on("/api/ota/version", HTTP_GET,  otaVersionController);
+  server.on("/api/ota/start",   HTTP_POST, otaStartController);
+  server.on("/api/ota/upload",  HTTP_POST,
+    otaUploadCompleteController,
+    otaUploadChunkController,
+    nullptr);
 
   // Suppress LittleFS error logs for common browser auto-requests
   server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest* request) {

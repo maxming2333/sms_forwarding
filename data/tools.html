@@ -137,6 +137,27 @@
       <div class="hint">直接向模组串口发送指令并接收响应，请谨慎操作</div>
     </div>
 
+    <div class="section" id="otaSection">
+      <div class="section-title">🔄 固件升级</div>
+      <div id="otaVersionInfo" style="margin-bottom:12px;">
+        <table class="info-table">
+          <tr><td>当前版本</td><td id="otaCurVer">获取中...</td></tr>
+          <tr><td>最新版本</td><td id="otaLatestVer">检查中...</td></tr>
+        </table>
+      </div>
+      <div id="otaProgress" class="result-box" style="display:none;"></div>
+      <div id="otaOnlineArea" style="margin-top:10px;">
+        <button type="button" id="otaOnlineBtn" onclick="startOnlineUpgrade()" style="background:#4CAF50;" disabled>🌐 在线升级</button>
+        <div id="otaUpToDate" class="hint" style="color:#4CAF50;display:none;">✅ 已是最新版本，无需升级</div>
+      </div>
+      <div id="otaUploadArea" style="margin-top:15px;border-top:1px solid #eee;padding-top:12px;">
+        <label style="display:block;margin-bottom:5px;font-weight:bold;color:#555;">手动上传固件（.bin 文件）</label>
+        <input type="file" id="otaFile" accept=".bin" style="margin-bottom:8px;">
+        <button type="button" id="otaUploadBtn" onclick="startManualUpgrade()" style="background:#FF9800;">📂 手动升级</button>
+      </div>
+      <div class="hint" style="margin-top:8px;color:#e65100;">⚠️ 升级期间请勿断电，升级成功后设备将自动重启</div>
+    </div>
+
     <div class="section">
       <div class="section-title">🗂️ 配置管理</div>
       <div class="form-group">
@@ -560,7 +581,185 @@
     document.addEventListener('DOMContentLoaded', function() {
       loadStatus();
       loadSoc();
+      startOtaVersionCheck();
     });
+
+    // ── OTA ──────────────────────────────────────────────────────
+    var otaPollingTimer = null;
+    var otaInUpgrade    = false;
+
+    function otaStateLabel(state) {
+      var map = {
+        idle: '空闲', checking: '正在检查版本...', downloading: '下载中...',
+        writing: '写入中...', success: '升级成功，重启中...', failed: '升级失败'
+      };
+      return map[state] || state;
+    }
+
+    function renderOtaStatus(d) {
+      var progress  = document.getElementById('otaProgress');
+      var curVerEl  = document.getElementById('otaCurVer');
+      var latestEl  = document.getElementById('otaLatestVer');
+      var onlineBtn = document.getElementById('otaOnlineBtn');
+      var upToDate  = document.getElementById('otaUpToDate');
+
+      if (d.currentVersion) curVerEl.textContent = d.currentVersion;
+      if (d.latestVersion)  latestEl.textContent = d.latestVersion;
+      else if (d.state === 'checking') latestEl.textContent = '检查中...';
+
+      var stateLabel = otaStateLabel(d.state);
+      if (d.state !== 'idle') {
+        progress.style.display = 'block';
+        if (d.state === 'failed') {
+          progress.className = 'result-box result-error';
+          progress.textContent = '❌ ' + (d.message || '升级失败');
+        } else if (d.state === 'success') {
+          progress.className = 'result-box result-success';
+          progress.textContent = '✅ ' + (d.message || '升级成功，设备即将重启');
+        } else {
+          progress.className = 'result-box result-loading';
+          progress.textContent = stateLabel + (d.progress > 0 ? '（' + d.progress + '%）' : '');
+        }
+      } else {
+        if (!otaInUpgrade) progress.style.display = 'none';
+      }
+
+      // 版本比较（仅 idle/failed 且有 latestVersion 时显示按钮）
+      if (d.latestVersion && d.currentVersion) {
+        if (d.latestVersion !== d.currentVersion) {
+          latestEl.textContent = d.latestVersion + ' 🆕';
+          onlineBtn.disabled = false;
+          upToDate.style.display = 'none';
+        } else {
+          onlineBtn.disabled = true;
+          upToDate.style.display = 'block';
+        }
+      }
+    }
+
+    function pollOtaStatus() {
+      fetch('/api/ota/status')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          renderOtaStatus(d);
+          if (d.state === 'success' || d.state === 'failed' || d.state === 'idle') {
+            stopOtaPolling();
+            if (d.state !== 'idle') otaInUpgrade = false;
+          }
+        })
+        .catch(function() {});
+    }
+
+    function startOtaPolling() {
+      if (otaPollingTimer) return;
+      otaPollingTimer = setInterval(pollOtaStatus, 1000);
+    }
+
+    function stopOtaPolling() {
+      if (otaPollingTimer) {
+        clearInterval(otaPollingTimer);
+        otaPollingTimer = null;
+      }
+    }
+
+    function startOtaVersionCheck() {
+      fetch('/api/ota/version')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          renderOtaStatus(d);
+          if (d.state !== 'idle' && d.state !== 'success' && d.state !== 'failed') {
+            startOtaPolling();
+          }
+        })
+        .catch(function(e) {
+          document.getElementById('otaCurVer').textContent = '获取失败';
+          document.getElementById('otaLatestVer').textContent = '检查失败';
+        });
+    }
+
+    function startOnlineUpgrade() {
+      if (!confirm('确定要开始在线升级吗？\n\n升级过程中请勿断电，设备升级成功后将自动重启。')) return;
+      var btn = document.getElementById('otaOnlineBtn');
+      btn.disabled = true;
+      otaInUpgrade = true;
+
+      fetch('/api/ota/start', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (d.success) {
+            startOtaPolling();
+          } else {
+            btn.disabled = false;
+            otaInUpgrade = false;
+            var p = document.getElementById('otaProgress');
+            p.className = 'result-box result-error';
+            p.style.display = 'block';
+            p.textContent = '❌ ' + (d.message || '启动升级失败');
+          }
+        })
+        .catch(function(e) {
+          btn.disabled = false;
+          otaInUpgrade = false;
+          var p = document.getElementById('otaProgress');
+          p.className = 'result-box result-error';
+          p.style.display = 'block';
+          p.textContent = '❌ 请求失败: ' + e.message;
+        });
+    }
+
+    function startManualUpgrade() {
+      var fileInput = document.getElementById('otaFile');
+      var btn       = document.getElementById('otaUploadBtn');
+      var progress  = document.getElementById('otaProgress');
+
+      if (!fileInput.files || fileInput.files.length === 0) {
+        progress.className = 'result-box result-error';
+        progress.style.display = 'block';
+        progress.textContent = '❌ 请先选择 .bin 固件文件';
+        return;
+      }
+
+      var file = fileInput.files[0];
+      if (file.size > 1.5 * 1024 * 1024) {
+        progress.className = 'result-box result-error';
+        progress.style.display = 'block';
+        progress.textContent = '❌ 文件过大（单个 OTA 分区最大约 1.25MB），请确认选择了正确的固件文件';
+        return;
+      }
+
+      if (!confirm('确定要上传并安装此固件吗？\n\n文件：' + file.name + '\n大小：' + (file.size / 1024).toFixed(1) + ' KB\n\n升级成功后设备将自动重启。')) return;
+
+      btn.disabled = true;
+      otaInUpgrade = true;
+      progress.className = 'result-box result-loading';
+      progress.style.display = 'block';
+      progress.textContent = '正在上传固件，请稍候...';
+
+      var form = new FormData();
+      form.append('firmware', file);
+
+      fetch('/api/ota/upload', { method: 'POST', body: form })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          btn.disabled = false;
+          otaInUpgrade = false;
+          if (d.success) {
+            progress.className = 'result-box result-success';
+            progress.textContent = '✅ ' + (d.message || '上传成功，设备即将重启');
+          } else {
+            progress.className = 'result-box result-error';
+            progress.textContent = '❌ ' + (d.message || '上传失败');
+          }
+        })
+        .catch(function(e) {
+          btn.disabled = false;
+          otaInUpgrade = false;
+          progress.className = 'result-box result-error';
+          progress.textContent = '❌ 上传失败: ' + e.message;
+        });
+
+      startOtaPolling();
+    }
   </script>
 </body>
 </html>
