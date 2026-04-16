@@ -60,7 +60,7 @@ void otaStartController(AsyncWebServerRequest* request) {
 
     // latestVersion 为空时拒绝（尚未完成版本检查）
     if (status.latestVersion.isEmpty()) {
-        AsyncJsonResponse* resp = new AsyncJsonResponse(false, 256);
+        AsyncJsonResponse* resp = new AsyncJsonResponse();
         resp->setCode(400);
         JsonObject root = resp->getRoot();
         root["success"] = false;
@@ -73,7 +73,7 @@ void otaStartController(AsyncWebServerRequest* request) {
     bool started = otaStartOnlineUpgrade();
     if (!started) {
         // 已有升级进行中
-        AsyncJsonResponse* resp = new AsyncJsonResponse(false, 256);
+        AsyncJsonResponse* resp = new AsyncJsonResponse();
         resp->setCode(409);
         JsonObject root = resp->getRoot();
         root["success"] = false;
@@ -83,7 +83,7 @@ void otaStartController(AsyncWebServerRequest* request) {
         return;
     }
 
-    AsyncJsonResponse* resp = new AsyncJsonResponse(false, 256);
+    AsyncJsonResponse* resp = new AsyncJsonResponse();
     JsonObject root = resp->getRoot();
     root["success"] = true;
     root["message"] = "在线升级已开始";
@@ -111,14 +111,14 @@ void otaUploadCompleteController(AsyncWebServerRequest* request) {
     OtaStatusPayload status = otaGetStatus();
 
     if (status.state == OtaState::SUCCESS) {
-        AsyncJsonResponse* resp = new AsyncJsonResponse(false, 256);
+        AsyncJsonResponse* resp = new AsyncJsonResponse();
         JsonObject root = resp->getRoot();
         root["success"] = true;
         root["message"] = "固件上传成功，设备即将重启";
         resp->setLength();
         request->send(resp);
     } else if (status.state == OtaState::FAILED) {
-        AsyncJsonResponse* resp = new AsyncJsonResponse(false, 256);
+        AsyncJsonResponse* resp = new AsyncJsonResponse();
         resp->setCode(500);
         JsonObject root = resp->getRoot();
         root["success"] = false;
@@ -127,7 +127,7 @@ void otaUploadCompleteController(AsyncWebServerRequest* request) {
         request->send(resp);
     } else {
         // 并发冲突或状态异常
-        AsyncJsonResponse* resp = new AsyncJsonResponse(false, 256);
+        AsyncJsonResponse* resp = new AsyncJsonResponse();
         resp->setCode(409);
         JsonObject root = resp->getRoot();
         root["success"] = false;
