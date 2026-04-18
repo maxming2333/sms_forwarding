@@ -66,6 +66,7 @@ void saveController(AsyncWebServerRequest* request) {
       config.pushChannels[i].key1       = request->hasParam("push" + idx + "key1", true) ? request->getParam("push" + idx + "key1", true)->value() : "";
       config.pushChannels[i].key2       = request->hasParam("push" + idx + "key2", true) ? request->getParam("push" + idx + "key2", true)->value() : "";
       config.pushChannels[i].customBody = request->hasParam("push" + idx + "body", true) ? request->getParam("push" + idx + "body", true)->value() : "";
+      config.pushChannels[i].retryOnFail = request->hasParam("push" + idx + "retry", true);
       if (config.pushChannels[i].name.length() == 0) {
         config.pushChannels[i].name = "通道" + String(i + 1);
       }

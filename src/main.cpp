@@ -12,6 +12,7 @@
 #include "time/time_module.h"
 #include "sms/sms.h"
 #include "push/push.h"
+#include "push/push_retry.h"
 #include "email/email.h"
 #include "http/http_server.h"
 #include "ota/ota_manager.h"
@@ -80,6 +81,7 @@ void setup() {
   simInit();
 
   // WiFi
+  wifiManagerSetReconnectCallback([]{ timeModuleSyncNTP(); });
   wifiManagerInit();
 
   // 时间同步：STA 模式下优先使用 NTP；AP 模式下等 SIM 就绪后从 NITZ 同步
@@ -106,6 +108,7 @@ void setup() {
   otaInit();
 
   callInit();
+  pushRetryInit();
   simStartReaderTask();
 
   digitalWrite(LED_BUILTIN, LOW);
@@ -129,6 +132,7 @@ void loop() {
   checkConcatTimeout();
   callTick();
   simTick();
+  pushRetryTick();
 
   // SIM 就绪后抓取运营商/信号，并在 NTP 未同步时从 SIM NITZ 同步时间
   if (!s_simInfoFetched && simGetState() == SIM_READY) {

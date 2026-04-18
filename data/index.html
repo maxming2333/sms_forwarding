@@ -257,6 +257,10 @@
             '<textarea name="push' + i + 'body" id="body' + i + '" maxlength="512">' + escHtml(ch.customBody) + '</textarea>' +
             '<div class="hint">不填，则使用默认格式；支持占位符：{sender} {message} {timestamp} {date} {device_id} {carrier} {sim_number} {sim_slot} {signal}</div>' +
           '</div>' +
+          '<div class="form-group">' +
+            '<input type="checkbox" id="push' + i + 'retry" name="push' + i + 'retry" value="1"' + (ch.retryOnFail ? ' checked' : '') + '>' +
+            '<label class="label-inline" for="push' + i + 'retry">失败重试（推送失败后自动加入重试队列）</label>' +
+          '</div>' +
           '<div class="push-type-hint" id="hint' + i + '"></div>' +
         '</div>' +
       '</div>';

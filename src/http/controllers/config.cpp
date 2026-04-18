@@ -40,6 +40,7 @@ void configController(AsyncWebServerRequest* request) {
     ch["key1"]       = config.pushChannels[i].key1;
     ch["key2"]       = config.pushChannels[i].key2;
     ch["customBody"] = config.pushChannels[i].customBody;
+    ch["retryOnFail"] = config.pushChannels[i].retryOnFail;
   }
 
   JsonArray wifiArr = root["wifiList"].to<JsonArray>();

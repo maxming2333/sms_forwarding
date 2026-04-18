@@ -13,6 +13,18 @@ static unsigned long   s_cmdStartMs  = 0;
 // CMT PDU 行检测状态（是否等待 PDU 数据行）
 static bool            s_waitingPdu  = false;
 
+// ---------- 内部 URC 识别 ----------
+
+static bool isUrcLine(const String& line) {
+    if (line.equals("RING"))                   return true;
+    if (line.startsWith("+CLIP:"))             return true;
+    if (line.startsWith("+CMT:"))              return true;
+    if (s_waitingPdu)                          return true;
+    if (line.indexOf("+CPIN:") >= 0)           return true;
+    if (line.startsWith("+SIMCARD:"))          return true;
+    return false;
+}
+
 // ---------- 内部 URC 路由 ----------
 
 static void routeURC(const String& line) {
@@ -64,6 +76,11 @@ static void simReaderTask(void*) {
                 if (line.length() == 0) continue;
 
                 if (s_activeCmd != nullptr) {
+                    // T015: 有活跃指令时先检查是否为 URC 行
+                    if (isUrcLine(line)) {
+                        LOG("SIM", "[URC-during-cmd] %s", line.c_str());
+                        routeURC(line);
+                    } else {
                     // 追加到响应缓冲（防溢出）
                     size_t existing = strlen(s_activeCmd->respBuf);
                     size_t avail    = 255 - existing;
@@ -88,6 +105,7 @@ static void simReaderTask(void*) {
                         s_activeCmd->isOk = false;
                         xSemaphoreGive(s_activeCmd->doneSem);
                         s_activeCmd = nullptr;
+                    }
                     }
                 } else {
                     routeURC(line);

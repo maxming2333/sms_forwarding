@@ -1,5 +1,6 @@
 #include "push.h"
 #include "push_channels.h"
+#include "push_retry.h"
 #include "msg_context.h"
 #include "time/time_module.h"
 #include "sim/sim.h"
@@ -74,6 +75,12 @@ void sendPushNotification(const String& sender, const String& message, const Str
     } else {
       // 广播模式：继续所有通道
       delay(100);
+    }
+
+    // T021: 失败且开启重试时入队
+    if (!ok && ch.retryOnFail) {
+      pushRetryEnqueue(i, sender, message, timestamp, msgType);
+      LOG("Push", "[Retry] 通道 %s 失败，已加入重试队列", name.c_str());
     }
   }
   LOG("Push", "=== 多通道推送完成 ===");

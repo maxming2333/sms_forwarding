@@ -43,6 +43,7 @@ struct PushChannel {
   String   key1;
   String   key2;
   String   customBody;
+  bool     retryOnFail;
 };
 
 struct WifiEntry {

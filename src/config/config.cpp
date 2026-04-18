@@ -35,6 +35,7 @@ void loadConfig() {
     config.pushChannels[i].key1       = preferences.isKey((prefix + "k1").c_str())   ? preferences.getString((prefix + "k1").c_str(),   "")                    : "";
     config.pushChannels[i].key2       = preferences.isKey((prefix + "k2").c_str())   ? preferences.getString((prefix + "k2").c_str(),   "")                    : "";
     config.pushChannels[i].customBody = preferences.isKey((prefix + "body").c_str()) ? preferences.getString((prefix + "body").c_str(), "")                    : "";
+    config.pushChannels[i].retryOnFail = preferences.getBool((prefix + "retry").c_str(), false);
   }
 
   // 兼容旧配置：迁移旧 httpUrl 到第一个通道
@@ -109,6 +110,7 @@ void saveConfig() {
     preferences.putString((prefix + "k1").c_str(),  config.pushChannels[i].key1);
     preferences.putString((prefix + "k2").c_str(),  config.pushChannels[i].key2);
     preferences.putString((prefix + "body").c_str(), config.pushChannels[i].customBody);
+    preferences.putBool((prefix + "retry").c_str(), config.pushChannels[i].retryOnFail);
   }
 
   preferences.putBool("simNotify",    config.simNotifyEnabled);
