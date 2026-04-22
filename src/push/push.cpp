@@ -73,6 +73,12 @@ void sendPushNotification(const String& sender, const String& message, const Str
   }
 
   LOG("Push", "=== 开始多通道推送 ===");
+
+  if (config.pushCount == 0) {
+    LOG("Push", "未配置任何推送通道，跳过推送");
+    return;
+  }
+
   bool wifiOk = (WiFi.status() == WL_CONNECTED);
 
   // 构建消息上下文（每次推送时构建一次，所有通道共享）
@@ -128,5 +134,6 @@ void sendPushNotification(const String& sender, const String& message, const Str
       LOG("Push", "[Retry] 通道 %s 失败，已加入重试队列", name.c_str());
     }
   }
+
   LOG("Push", "=== 多通道推送完成 ===");
 }
