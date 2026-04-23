@@ -49,7 +49,7 @@ void sendSmsController(AsyncWebServerRequest* request) {
 void pingController(AsyncWebServerRequest* request) {
   LOG("HTTP", "网页端发起Ping请求");
 
-  simSendCommand("AT+CGACT=1,1", 10000, nullptr, false);
+  sendATCommand("AT+CGACT=1,1", 10000);
   delay(500);
 
   // AT+MPING 为异步多行响应，通过 Serial1 直接收取（reader task 此时已阻塞在调用方等待）

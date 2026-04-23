@@ -220,8 +220,7 @@ void otaStartVersionCheck() {
     g_inProgress = true;
     g_latestVer  = "";
     g_state      = OtaState::IDLE;
-    xTaskCreate(checkVersionTask, "ota_check", OTA_TASK_STACK_SIZE / 2,
-                nullptr, OTA_TASK_PRIORITY, nullptr);
+    xTaskCreate(checkVersionTask, "ota_check", OTA_TASK_STACK_SIZE, nullptr, OTA_TASK_PRIORITY, nullptr);
 }
 
 // ── otaStartOnlineUpgrade ─────────────────────────────────────────

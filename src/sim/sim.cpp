@@ -90,9 +90,24 @@ static void simTrafficTick() {
         LOG("SIM", "数据流量: AT+CGACT 成功");
         s_tsm.state = TS_DONE;
       } else {
-        LOG("SIM", "数据流量: AT+CGACT 失败或超时，3s 后重试");
-        s_tsm.lastActionMs = millis();
-        s_tsm.state        = TS_WAIT_RETRY;
+        // 指令失败时查询当前状态，若上下文已处于目标状态则视为成功
+        // （软重启后上下文可能已被关闭，再次关闭会返回 ERROR）
+        String cgactResp;
+        bool alreadyInDesiredState = false;
+        if (simSendCommand("AT+CGACT?", 3000, &cgactResp, false)) {
+          String desiredPattern = String("+CGACT: 1,") + (config.dataTraffic ? "1" : "0");
+          if (cgactResp.indexOf(desiredPattern) >= 0) {
+            alreadyInDesiredState = true;
+          }
+        }
+        if (alreadyInDesiredState) {
+          LOG("SIM", "数据流量: 上下文已处于目标状态，无需重试");
+          s_tsm.state = TS_DONE;
+        } else {
+          LOG("SIM", "数据流量: AT+CGACT 失败或超时，3s 后重试");
+          s_tsm.lastActionMs = millis();
+          s_tsm.state        = TS_WAIT_RETRY;
+        }
       }
       break;
     }
