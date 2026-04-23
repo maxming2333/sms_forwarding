@@ -55,7 +55,6 @@ void wifiManagerInit() {
 
     for (int attempt = 1; attempt <= WIFI_RECONNECT_ATTEMPTS_PER_SSID; attempt++) {
       WiFi.begin(ssid, pass, 0, nullptr, true);
-
       unsigned long start = millis();
       while (millis() - start < 3000) {
         if (WiFi.status() == WL_CONNECTED) {
@@ -70,7 +69,7 @@ void wifiManagerInit() {
 
       LOG("WiFi", "第 %d/%d 条WiFi第 %d/%d 次连接超时", w + 1, config.wifiCount, attempt, WIFI_RECONNECT_ATTEMPTS_PER_SSID);
       WiFi.disconnect(true);
-      delay(500);
+      delay(300);
       esp_task_wdt_reset();
     }
   }
@@ -85,6 +84,7 @@ void wifiManagerTick() {
   switch (s_reconnState) {
     case RECONNECT_IDLE:
       if (s_everConnected && s_mode == WIFI_MODE_STA_CONNECTED && WiFi.status() != WL_CONNECTED) {
+        WiFi.disconnect(true);
         s_mode = WIFI_MODE_RECONNECTING;
         s_reconnState   = RECONNECT_WAITING;
         s_reconnWIdx    = 0;
@@ -109,6 +109,8 @@ void wifiManagerTick() {
         const char* ssid = config.wifiList[s_reconnWIdx].ssid.c_str();
         const char* pass = config.wifiList[s_reconnWIdx].password.c_str();
         LOG("WiFi", "重连尝试 SSID: %s，第 %d/%d 次", ssid, s_reconnAttempt + 1, WIFI_RECONNECT_ATTEMPTS_PER_SSID);
+        WiFi.disconnect(true);
+        delay(300);
         WiFi.begin(ssid, pass, 0, nullptr, true);
         s_lastAttemptMs = millis();
         s_reconnState   = RECONNECT_CONNECTING;
