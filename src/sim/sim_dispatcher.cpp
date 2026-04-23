@@ -1,5 +1,6 @@
 #include "sim_dispatcher.h"
 #include <Arduino.h>
+#include <new>
 #include "logger.h"
 
 // ---------- 模块内部静态全局变量 ----------
@@ -9,6 +10,25 @@ static TaskHandle_t    s_task        = nullptr;
 static SimUrcCallback  s_urcCb       = nullptr;
 static SimCmdSlot*     s_activeCmd   = nullptr;
 static unsigned long   s_cmdStartMs  = 0;
+
+// 保护 SimCmdSlot::refCount 的自旋锁（跨核安全）
+static portMUX_TYPE    s_slotMux     = portMUX_INITIALIZER_UNLOCKED;
+
+// ---------- 内部：引用计数释放 ----------
+
+// 每个 SimCmdSlot 由调用方和 reader task 各持一个引用（refCount=2）。
+// 任意一方完成时调用此函数；当引用计数归零时负责释放信号量和内存。
+static void releaseSlot(SimCmdSlot* slot) {
+    if (slot == nullptr) return;
+    int remaining;
+    taskENTER_CRITICAL(&s_slotMux);
+    remaining = --slot->refCount;
+    taskEXIT_CRITICAL(&s_slotMux);
+    if (remaining == 0) {
+        vSemaphoreDelete(slot->doneSem);
+        delete slot;
+    }
+}
 
 // CMT PDU 行检测状态（是否等待 PDU 数据行）
 static bool            s_waitingPdu  = false;
@@ -70,7 +90,7 @@ static void simReaderTask(void*) {
             char c = (char)Serial1.read();
             if (c == '\n') {
                 String line = lineBuf;
-                lineBuf = "";
+                lineBuf.remove(0, lineBuf.length());  // 清空内容但保留已分配容量，避免重复 malloc/free
 
                 if (line.length() == 0) continue;
 
@@ -98,12 +118,18 @@ static void simReaderTask(void*) {
 
                     if (line.indexOf("OK") >= 0) {
                         s_activeCmd->isOk = true;
-                        xSemaphoreGive(s_activeCmd->doneSem);
+                        // s_activeCmd 须在 xSemaphoreGive 前清空，确保调用方唤醒时
+                        // 不会看到旧指针，防止潜在的重复处理
+                        SimCmdSlot* tmp = s_activeCmd;
                         s_activeCmd = nullptr;
+                        xSemaphoreGive(tmp->doneSem);
+                        releaseSlot(tmp);
                     } else if (line.indexOf("ERROR") >= 0) {
                         s_activeCmd->isOk = false;
-                        xSemaphoreGive(s_activeCmd->doneSem);
+                        SimCmdSlot* tmp = s_activeCmd;
                         s_activeCmd = nullptr;
+                        xSemaphoreGive(tmp->doneSem);
+                        releaseSlot(tmp);
                     }
                     }
                 } else {
@@ -129,8 +155,10 @@ static void simReaderTask(void*) {
             millis() - s_cmdStartMs > s_activeCmd->timeoutMs) {
             LOG("SIM", "AT 指令超时: %s", s_activeCmd->cmd);
             s_activeCmd->isOk = false;
-            xSemaphoreGive(s_activeCmd->doneSem);
+            SimCmdSlot* tmp = s_activeCmd;
             s_activeCmd = nullptr;
+            xSemaphoreGive(tmp->doneSem);
+            releaseSlot(tmp);
         }
 
         vTaskDelay(pdMS_TO_TICKS(5));
@@ -157,41 +185,51 @@ bool simSendCommand(const char* cmd, unsigned long timeoutMs,
                     String* outResp, bool prio) {
     if (s_queue == nullptr) return false;
 
-    SimCmdSlot slot;
-    strncpy(slot.cmd, cmd, 63);
-    slot.cmd[63]      = '\0';
-    slot.timeoutMs    = timeoutMs;
-    slot.respBuf[0]   = '\0';
-    slot.isOk         = false;
-    slot.priority     = prio;
+    // 堆上分配，避免调用方超时返回后 reader task 持有悬空栈指针（use-after-free）
+    SimCmdSlot* slot = new (std::nothrow) SimCmdSlot();
+    if (slot == nullptr) return false;
 
-    slot.doneSem = xSemaphoreCreateBinary();
-    if (slot.doneSem == nullptr) return false;
+    strncpy(slot->cmd, cmd, 63);
+    slot->cmd[63]      = '\0';
+    slot->timeoutMs    = timeoutMs;
+    slot->respBuf[0]   = '\0';
+    slot->isOk         = false;
+    slot->priority     = prio;
+    // refCount 须在入队前初始化，确保 reader task 取出时看到正确的值
+    slot->refCount     = 2;  // 调用方 + reader task 各持一个引用
 
-    SimCmdSlot* ptr = &slot;
+    slot->doneSem = xSemaphoreCreateBinary();
+    if (slot->doneSem == nullptr) {
+        delete slot;
+        return false;
+    }
+
     BaseType_t sent;
     if (prio) {
-        sent = xQueueSendToFront(s_queue, &ptr, pdMS_TO_TICKS(100));
+        sent = xQueueSendToFront(s_queue, &slot, pdMS_TO_TICKS(100));
     } else {
-        sent = xQueueSendToBack(s_queue, &ptr, pdMS_TO_TICKS(100));
+        sent = xQueueSendToBack(s_queue, &slot, pdMS_TO_TICKS(100));
     }
 
     if (sent != pdTRUE) {
-        vSemaphoreDelete(slot.doneSem);
+        vSemaphoreDelete(slot->doneSem);
+        delete slot;
         return false;
     }
 
-    BaseType_t taken = xSemaphoreTake(slot.doneSem, pdMS_TO_TICKS(timeoutMs + 500));
-    vSemaphoreDelete(slot.doneSem);
+    BaseType_t taken = xSemaphoreTake(slot->doneSem, pdMS_TO_TICKS(timeoutMs + 500));
 
-    if (outResp != nullptr) {
-        *outResp = String(slot.respBuf);
+    bool result = false;
+    if (taken == pdTRUE) {
+        result = slot->isOk;
+        if (outResp != nullptr) {
+            *outResp = String(slot->respBuf);
+        }
     }
 
-    if (taken != pdTRUE) {
-        return false;
-    }
-    return slot.isOk;
+    // 释放调用方持有的引用；若 reader task 已完成则此处触发回收，否则由 reader task 完成时回收
+    releaseSlot(slot);
+    return result;
 }
 
 void simPauseReader() {

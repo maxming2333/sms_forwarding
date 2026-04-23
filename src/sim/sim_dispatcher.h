@@ -45,14 +45,17 @@ constexpr UBaseType_t SIM_READER_TASK_PRIORITY = 3;
 
 /**
  * @brief 单条 SIM 指令的完整上下文。
- *        调用方在栈上分配，通过指针入队。
- *        reader task 填充 respBuf/isOk 后 xSemaphoreGive(doneSem)。
+ *        由 simSendCommand() 在堆上分配，通过指针入队。
+ *        refCount 初始化为 2（调用方 + reader task 各持一个引用）。
+ *        两方都调用 releaseSlot() 后，内存与信号量被释放。
+ *        这避免了调用方超时返回时 reader task 持有悬空指针的问题。
  */
 struct SimCmdSlot {
     char              cmd[64];      ///< AT 指令字符串（含 \0）
     unsigned long     timeoutMs;    ///< 等待响应的超时（毫秒）
     char              respBuf[256]; ///< reader task 填入的原始响应（含 OK/ERROR）
     SemaphoreHandle_t doneSem;      ///< 完成信号量（调用方 Take，reader task Give）
+    volatile int      refCount;    ///< 引用计数，由 s_slotMux 保护（2 = 调用方 + reader task）
     bool              isOk;        ///< 响应是否以 OK 结束
     bool              priority;    ///< true = 插队到队首（用于 RING/CLIP 优先处理）
 };
