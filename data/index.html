@@ -306,6 +306,16 @@
                             <td style="padding:5px 12px;">设备运行时长</td>
                             <td style="padding:5px 12px;color:#888;">3小时25分</td>
                         </tr>
+                        <tr>
+                            <td style="padding:5px 12px;white-space:nowrap;"><code>{channel_name}</code></td>
+                            <td style="padding:5px 12px;">当前推送通道名称</td>
+                            <td style="padding:5px 12px;color:#888;">我的Bark</td>
+                        </tr>
+                        <tr style="background:#fafafa;">
+                            <td style="padding:5px 12px;white-space:nowrap;"><code>{channel_type}</code></td>
+                            <td style="padding:5px 12px;">当前推送类型</td>
+                            <td style="padding:5px 12px;color:#888;">Bark 服务</td>
+                        </tr>
                         </tbody>
                     </table>
                 </details>
@@ -505,6 +515,9 @@
       hint.innerHTML = '<b>POST JSON格式：</b><br>{"sender":"发送者号码","message":"短信内容","timestamp":"时间戳"}';
     } else if (type === 2) {
       hint.innerHTML = '<b>Bark格式：</b><br>POST {"title":"发送者号码","body":"短信内容"}';
+      extra.style.display = 'block';
+      document.getElementById('key1label' + i).innerText = '推送标题（可选）';
+      document.getElementById('key1' + i).placeholder = '默认为发送者号码';
     } else if (type === 3) {
       hint.innerHTML = '<b>GET请求格式：</b><br>URL?sender=xxx&amp;message=xxx&amp;timestamp=xxx';
     } else if (type === 4) {

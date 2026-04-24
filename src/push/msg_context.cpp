@@ -33,6 +33,8 @@ String renderTemplate(const String& tmpl, const MessageContext& ctx) {
   result.replace("{remark}",        ctx.remark);
   result.replace("{trigger_type}",  ctx.triggerType);
   result.replace("{uptime}",        ctx.uptime);
+  result.replace("{channel_name}",  ctx.channelName);
+  result.replace("{channel_type}",  ctx.channelType);
   // {from} 及向后兼容别名 {sender}
   result.replace("{from}",          ctx.from.length()      > 0 ? ctx.from      : "未知");
   result.replace("{sender}",        ctx.from.length()      > 0 ? ctx.from      : "未知");

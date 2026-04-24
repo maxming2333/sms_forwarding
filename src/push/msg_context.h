@@ -14,6 +14,8 @@ struct MessageContext {
   String remark;       // [NEW] 设备备注
   String triggerType;  // [NEW] 触发类型
   String uptime;       // [NEW] 设备运行时长
+  String channelName;  // [NEW] 当前推送通道名称
+  String channelType;  // [NEW] 当前推送类型（中文标签）
 };
 
 // 格式化运行时长（ms → 人类可读字符串）

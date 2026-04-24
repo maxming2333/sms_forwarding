@@ -41,6 +41,24 @@ static bool _sendOneChannel(const PushChannel& ch, const MessageContext& ctx,
 }
 
 // 构建消息上下文（内部辅助）
+static const char* pushTypeLabel(PushType t) {
+  switch (t) {
+    case PUSH_TYPE_POST_JSON:   return "POST JSON格式";
+    case PUSH_TYPE_BARK:        return "Bark 服务";
+    case PUSH_TYPE_GET:         return "GET请求";
+    case PUSH_TYPE_DINGTALK:    return "钉钉机器人";
+    case PUSH_TYPE_PUSHPLUS:    return "PushPlus";
+    case PUSH_TYPE_SERVERCHAN:  return "Server酱";
+    case PUSH_TYPE_CUSTOM:      return "POST 文本";
+    case PUSH_TYPE_FEISHU:      return "飞书机器人";
+    case PUSH_TYPE_GOTIFY:      return "Gotify";
+    case PUSH_TYPE_TELEGRAM:    return "Telegram Bot";
+    case PUSH_TYPE_WECHAT_WORK: return "企业微信机器人";
+    case PUSH_TYPE_SMS:         return "SMS 短信";
+    default:                    return "未知";
+  }
+}
+
 static MessageContext buildMsgContext(const String& sender, const String& message, const String& timestamp, const String& triggerType) {
   MessageContext ctx;
   ctx.from        = sender;
@@ -59,8 +77,7 @@ static MessageContext buildMsgContext(const String& sender, const String& messag
 }
 
 // 单通道推送：含跳过判断、构建消息上下文，供重试队列调用
-bool sendPushChannel(int channelIdx, const String& sender, const String& message,
-                     const String& timestamp, MsgType msgType) {
+bool sendPushChannel(int channelIdx, const String& sender, const String& message, const String& timestamp, MsgType msgType) {
   if (channelIdx < 0 || channelIdx >= config.pushCount) return false;
   const PushChannel& ch = config.pushChannels[channelIdx];
   if (!isPushChannelValid(ch)) return false;
@@ -69,8 +86,9 @@ bool sendPushChannel(int channelIdx, const String& sender, const String& message
   if (ch.type >= PUSH_TYPE_POST_JSON && ch.type <= PUSH_TYPE_WECHAT_WORK && !wifiOk) return false;
   if (ch.type == PUSH_TYPE_SMS && msgType == MSG_TYPE_SIM) return false;
 
-  MessageContext ctx = buildMsgContext(sender, message, timestamp,
-    msgType == MSG_TYPE_CALL ? "来电" : msgType == MSG_TYPE_SIM ? "SIM事件" : "短信");
+  MessageContext ctx = buildMsgContext(sender, message, timestamp, msgType == MSG_TYPE_CALL ? "来电" : msgType == MSG_TYPE_SIM ? "SIM事件" : "短信");
+  ctx.channelName = ch.name;
+  ctx.channelType    = pushTypeLabel(ch.type);
   String renderedBody = ch.customBody.length() > 0 ? renderTemplate(ch.customBody, ctx) : "";
   return _sendOneChannel(ch, ctx, sender, message, timestamp, renderedBody);
 }
@@ -117,6 +135,8 @@ void sendPushNotification(const String& sender, const String& message, const Str
     LOG("Push", "发送到推送通道: %s", name.c_str());
 
     // 渲染自定义消息格式（非空时替换内置默认格式）
+    ctx.channelName = ch.name;
+    ctx.channelType    = pushTypeLabel(ch.type);
     String renderedBody = ch.customBody.length() > 0 ? renderTemplate(ch.customBody, ctx) : "";
 
     bool ok = _sendOneChannel(ch, ctx, sender, message, timestamp, renderedBody);
