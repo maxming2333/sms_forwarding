@@ -3,9 +3,9 @@
 #include <esp_partition.h>
 #include <LittleFS.h>
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include "http/http_util.h"
 #include "logger.h"
 
 // ── 内部静态状态 ─────────────────────────────────────────────────
@@ -24,6 +24,15 @@ static TaskHandle_t            g_taskHandle = nullptr;
 static const esp_partition_t*  g_lfsPart        = nullptr;
 static size_t                  g_lfsWriteOffset = 0;
 static size_t                  g_lfsTotalSize   = 0;
+
+static void beginHttpClient(HTTPClient& http, WiFiClientSecure& tlsClient, const String& url) {
+    if (url.startsWith("https://")) {
+        tlsClient.setInsecure();
+        http.begin(tlsClient, url);
+    } else {
+        http.begin(url);
+    }
+}
 
 // ── otaInit ──────────────────────────────────────────────────────
 void otaInit() {
@@ -73,7 +82,8 @@ static void checkVersionTask(void* /*param*/) {
     LOG("OTA", "版本检查: %s", OTA_LATEST_URL);
 
     HTTPClient verHttp;
-    httpClientBegin(verHttp, OTA_LATEST_URL);
+    WiFiClientSecure verTls;
+    beginHttpClient(verHttp, verTls, OTA_LATEST_URL);
     verHttp.setTimeout(OTA_HTTP_TIMEOUT_MS);
     verHttp.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
     int verCode = verHttp.GET();
@@ -115,7 +125,8 @@ static void onlineUpgradeTask(void* /*param*/) {
     LOG("OTA", "开始版本检查: %s", OTA_LATEST_URL);
 
     HTTPClient verHttp;
-    httpClientBegin(verHttp, OTA_LATEST_URL);
+    WiFiClientSecure verTls;
+    beginHttpClient(verHttp, verTls, OTA_LATEST_URL);
     verHttp.setTimeout(OTA_HTTP_TIMEOUT_MS);
     verHttp.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
     int verCode = verHttp.GET();
@@ -160,7 +171,8 @@ static void onlineUpgradeTask(void* /*param*/) {
     }
 
     HTTPClient dlHttp;
-    httpClientBegin(dlHttp, firmwareUrl);
+    WiFiClientSecure fwTls;
+    beginHttpClient(dlHttp, fwTls, firmwareUrl);
     dlHttp.setTimeout(OTA_HTTP_TIMEOUT_MS);
     dlHttp.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
     dlHttp.setRedirectLimit(10);
@@ -250,7 +262,8 @@ static void onlineUpgradeTask(void* /*param*/) {
         // 不中止升级，仅写入固件
     } else {
         HTTPClient fsHttp;
-        httpClientBegin(fsHttp, fsUrl);
+        WiFiClientSecure fsTls;
+        beginHttpClient(fsHttp, fsTls, fsUrl);
         fsHttp.setTimeout(OTA_HTTP_TIMEOUT_MS);
         fsHttp.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
         fsHttp.setRedirectLimit(10);

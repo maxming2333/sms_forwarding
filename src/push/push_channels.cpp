@@ -1,8 +1,8 @@
 #include "push_channels.h"
 #include "logger.h"
 #include "sms/sms.h"
-#include "http/http_util.h"
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 #include <mbedtls/md.h>
 #include <base64.h>
@@ -56,11 +56,21 @@ static int64_t getUtcMillis() {
   return (int64_t)time(nullptr) * 1000LL;
 }
 
+static void beginHttpClient(HTTPClient& http, WiFiClientSecure& tlsClient, const String& url) {
+  if (url.startsWith("https://")) {
+    tlsClient.setInsecure();
+    http.begin(tlsClient, url);
+  } else {
+    http.begin(url);
+  }
+}
+
 // ---------- channel implementations ----------
 
 bool sendPostJson(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
   HTTPClient http;
-  httpClientBegin(http, ch.url);
+  WiFiClientSecure tlsClient;
+  beginHttpClient(http, tlsClient, ch.url);
   http.addHeader("Content-Type", "application/json");
 
   String body;
@@ -83,7 +93,8 @@ bool sendPostJson(const PushChannel& ch, const String& sender, const String& mes
 
 bool sendBark(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
   HTTPClient http;
-  httpClientBegin(http, ch.url);
+  WiFiClientSecure tlsClient;
+  beginHttpClient(http, tlsClient, ch.url);
   http.addHeader("Content-Type", "application/json");
 
   JsonDocument doc;
@@ -102,15 +113,17 @@ bool sendBark(const PushChannel& ch, const String& sender, const String& message
 }
 
 bool sendGet(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
-  HTTPClient http;
   String url = ch.url;
   url += (url.indexOf('?') == -1) ? "?" : "&";
   url += "sender=" + urlEncode(sender);
   url += "&message=" + urlEncode(renderedBody.length() > 0 ? renderedBody : message);
   url += "&timestamp=" + urlEncode(timestamp);
 
+  HTTPClient http;
+  WiFiClientSecure tlsClient;
+
   LOG("Push", "GET %s", url.c_str());
-  httpClientBegin(http, url);
+  beginHttpClient(http, tlsClient, url);
   int code = http.GET();
   LOG("Push", "响应码: %d", code);
   http.end();
@@ -118,7 +131,6 @@ bool sendGet(const PushChannel& ch, const String& sender, const String& message,
 }
 
 bool sendDingtalk(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
-  HTTPClient http;
   String webhookUrl = ch.url;
 
   if (ch.key1.length() > 0) {
@@ -130,7 +142,9 @@ bool sendDingtalk(const PushChannel& ch, const String& sender, const String& mes
     webhookUrl += "timestamp=" + String(tsBuf) + "&sign=" + sign;
   }
 
-  httpClientBegin(http, webhookUrl);
+  HTTPClient http;
+  WiFiClientSecure tlsClient;
+  beginHttpClient(http, tlsClient, webhookUrl);
   http.addHeader("Content-Type", "application/json");
 
   String content = renderedBody.length() > 0 ? renderedBody
@@ -150,9 +164,10 @@ bool sendDingtalk(const PushChannel& ch, const String& sender, const String& mes
 }
 
 bool sendPushPlus(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
-  HTTPClient http;
   String url = ch.url.length() > 0 ? ch.url : "http://www.pushplus.plus/send";
-  httpClientBegin(http, url);
+  HTTPClient http;
+  WiFiClientSecure tlsClient;
+  beginHttpClient(http, tlsClient, url);
   http.addHeader("Content-Type", "application/json");
 
   String channelValue = "wechat";
@@ -183,9 +198,10 @@ bool sendPushPlus(const PushChannel& ch, const String& sender, const String& mes
 }
 
 bool sendServerChan(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
-  HTTPClient http;
   String url = ch.url.length() > 0 ? ch.url : ("https://sctapi.ftqq.com/" + ch.key1 + ".send");
-  httpClientBegin(http, url);
+  HTTPClient http;
+  WiFiClientSecure tlsClient;
+  beginHttpClient(http, tlsClient, url);
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
 
   String desp = renderedBody.length() > 0 ? renderedBody
@@ -203,7 +219,8 @@ bool sendServerChan(const PushChannel& ch, const String& sender, const String& m
 bool sendCustom(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
   // 类型7（POST请求）：使用 renderedBody（非空）或空 body（FR-008）
   HTTPClient http;
-  httpClientBegin(http, ch.url);
+  WiFiClientSecure tlsClient;
+  beginHttpClient(http, tlsClient, ch.url);
   http.addHeader("Content-Type", "application/json");
 
   String body = renderedBody;  // 可为空（FR-008: 留空时发送空 POST body）
@@ -216,7 +233,8 @@ bool sendCustom(const PushChannel& ch, const String& sender, const String& messa
 
 bool sendFeishu(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
   HTTPClient http;
-  httpClientBegin(http, ch.url);
+  WiFiClientSecure tlsClient;
+  beginHttpClient(http, tlsClient, ch.url);
   http.addHeader("Content-Type", "application/json");
 
   JsonDocument doc;
@@ -243,11 +261,12 @@ bool sendFeishu(const PushChannel& ch, const String& sender, const String& messa
 }
 
 bool sendGotify(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
-  HTTPClient http;
   String url = ch.url;
   if (!url.endsWith("/")) url += "/";
   url += "message?token=" + ch.key1;
-  httpClientBegin(http, url);
+  HTTPClient http;
+  WiFiClientSecure tlsClient;
+  beginHttpClient(http, tlsClient, url);
   http.addHeader("Content-Type", "application/json");
 
   String msg = renderedBody.length() > 0 ? renderedBody : (message + "\n\n时间: " + timestamp);
@@ -266,11 +285,12 @@ bool sendGotify(const PushChannel& ch, const String& sender, const String& messa
 }
 
 bool sendTelegram(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
-  HTTPClient http;
   String baseUrl = ch.url.length() > 0 ? ch.url : "https://api.telegram.org";
   if (baseUrl.endsWith("/")) baseUrl.remove(baseUrl.length() - 1);
   String url = baseUrl + "/bot" + ch.key2 + "/sendMessage";
-  httpClientBegin(http, url);
+  HTTPClient http;
+  WiFiClientSecure tlsClient;
+  beginHttpClient(http, tlsClient, url);
   http.addHeader("Content-Type", "application/json");
 
   String text = renderedBody.length() > 0 ? renderedBody
@@ -289,7 +309,6 @@ bool sendTelegram(const PushChannel& ch, const String& sender, const String& mes
 }
 
 bool sendWechatWork(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
-  HTTPClient http;
   String webhookUrl = ch.url;
 
   if (ch.key1.length() > 0) {
@@ -300,7 +319,9 @@ bool sendWechatWork(const PushChannel& ch, const String& sender, const String& m
     webhookUrl += "timestamp=" + String(tsBuf) + "&sign=" + urlEncode(computeHmacSha256Base64(ch.key1, String(tsBuf) + "\n" + ch.key1));
   }
 
-  httpClientBegin(http, webhookUrl);
+  HTTPClient http;
+  WiFiClientSecure tlsClient;
+  beginHttpClient(http, tlsClient, webhookUrl);
   http.addHeader("Content-Type", "application/json");
   http.setTimeout(10000);
 
