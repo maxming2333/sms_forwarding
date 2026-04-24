@@ -1,22 +1,16 @@
-import os
-import gzip
 import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from data_utils import compress_data_dir  # noqa: E402
 
 data_dir = 'data'
-originals = {}
 os.makedirs('.pio', exist_ok=True)
-for fname in os.listdir(data_dir):
-    if fname.endswith('.gz'):
-        continue
-    fpath = os.path.join(data_dir, fname)
-    if not os.path.isfile(fpath):
-        continue
-    with open(fpath, 'rb') as f:
-        content = f.read()
-    originals[fname] = list(content)
-    gz_path = fpath + '.gz'
-    with gzip.open(gz_path, 'wb') as gz_f:
-        gz_f.write(content)
-    os.remove(fpath)
+print('[compress_data] 🚀 compressing data/ for LittleFS...')
+originals = compress_data_dir(data_dir, tag='[compress_data]')
+
+# Save originals as byte lists so restore_data.py can reconstruct them.
 with open('.pio/originals.json', 'w') as jf:
-    json.dump(originals, jf)
+    json.dump({fname: list(content) for fname, content in originals.items()}, jf)
+print('[compress_data] ✅ done, originals saved to .pio/originals.json')
