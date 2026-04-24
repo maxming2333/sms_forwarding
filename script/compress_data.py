@@ -2,7 +2,7 @@ import json
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(env.subst("$PROJECT_DIR"), "script"))  # noqa: F821
 from data_utils import compress_data_dir  # noqa: E402
 
 data_dir = 'data'

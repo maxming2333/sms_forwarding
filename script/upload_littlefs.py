@@ -14,11 +14,8 @@ import os
 import subprocess
 import sys
 
-# Add script/ directory to sys.path so data_utils can be imported from SCons context.
-_script_dir = os.path.dirname(os.path.abspath(__file__))
-if _script_dir not in sys.path:
-    sys.path.insert(0, _script_dir)
-
+# SCons doesn't add script/ to sys.path, so we do it manually.
+sys.path.insert(0, os.path.join(env.subst("$PROJECT_DIR"), "script"))  # noqa: F821
 from data_utils import compress_data_dir  # noqa: E402
 
 
