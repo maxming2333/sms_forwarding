@@ -153,7 +153,7 @@ jobs:
           > 浏览器要求：Chrome 或 Edge（Firefox / Safari 不支持 Web Serial API）
           
           **连接**：
-          1. 波特率选择 \`460800\`
+          1. 波特率选择 \`115200\`
           2. 点击「连接」，在浏览器弹窗中选择 "USB JTAG/serial debug unit" 设备
 
           **首次安装**（新设备或需要重置配置）：
@@ -174,17 +174,17 @@ jobs:
 
           **首次安装**（新设备或需要重置所有配置）：
           \`\`\`bash
-          esptool --chip esp32c3 --baud 460800 write_flash 0x0 full-${VERSION_TAG}.bin
+          esptool --chip esp32c3 --baud 115200 write_flash 0x0 full-${VERSION_TAG}.bin
           \`\`\`
 
           **固件升级**（保留 WiFi 等配置，推荐日常更新）：
           \`\`\`bash
-          esptool --chip esp32c3 --baud 460800 write_flash 0x10000 update-${VERSION_TAG}.bin
+          esptool --chip esp32c3 --baud 115200 write_flash 0x10000 update-${VERSION_TAG}.bin
           \`\`\`
 
           **仅更新 Web UI**（保留固件和配置）：
           \`\`\`bash
-          esptool --chip esp32c3 --baud 460800 write_flash 0x290000 littlefs-${VERSION_TAG}.bin
+          esptool --chip esp32c3 --baud 115200 write_flash 0x290000 littlefs-${VERSION_TAG}.bin
           \`\`\`
 
           ## SHA256 校验
