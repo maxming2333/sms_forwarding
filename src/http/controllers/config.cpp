@@ -78,13 +78,14 @@ void configExportController(AsyncWebServerRequest* request) {
   JsonArray channels = doc["pushChannels"].to<JsonArray>();
   for (int i = 0; i < config.pushCount; i++) {
     JsonObject ch    = channels.add<JsonObject>();
-    ch["enabled"]    = config.pushChannels[i].enabled;
-    ch["type"]       = (int)config.pushChannels[i].type;
-    ch["name"]       = config.pushChannels[i].name;
-    ch["url"]        = config.pushChannels[i].url;
-    ch["key1"]       = config.pushChannels[i].key1;
-    ch["key2"]       = config.pushChannels[i].key2;
-    ch["customBody"] = config.pushChannels[i].customBody;
+    ch["enabled"]     = config.pushChannels[i].enabled;
+    ch["type"]        = (int)config.pushChannels[i].type;
+    ch["name"]        = config.pushChannels[i].name;
+    ch["url"]         = config.pushChannels[i].url;
+    ch["key1"]        = config.pushChannels[i].key1;
+    ch["key2"]        = config.pushChannels[i].key2;
+    ch["customBody"]  = config.pushChannels[i].customBody;
+    ch["retryOnFail"] = config.pushChannels[i].retryOnFail;
   }
 
   // blacklist 数组
@@ -180,6 +181,7 @@ void configImportController(AsyncWebServerRequest* request, uint8_t* data,
         if (s[prefix + "k1"].is<const char*>())   config.pushChannels[i].key1  = s[prefix + "k1"].as<String>();
         if (s[prefix + "k2"].is<const char*>())   config.pushChannels[i].key2  = s[prefix + "k2"].as<String>();
         if (s[prefix + "body"].is<const char*>())  config.pushChannels[i].customBody = s[prefix + "body"].as<String>();
+        if (s[prefix + "retry"].is<bool>())        config.pushChannels[i].retryOnFail = s[prefix + "retry"].as<bool>();
       }
       int blCount = s["blCount"] | 0;
       if (blCount > MAX_BLACKLIST_ENTRIES) blCount = MAX_BLACKLIST_ENTRIES;
@@ -285,6 +287,7 @@ void configImportController(AsyncWebServerRequest* request, uint8_t* data,
       } else if (ch["customFormat"].is<const char*>()) {
         config.pushChannels[i].customBody = ch["customFormat"].as<String>();
       }
+      config.pushChannels[i].retryOnFail = ch["retryOnFail"] | config.pushChannels[i].retryOnFail;
       i++;
     }
     config.pushCount = i;

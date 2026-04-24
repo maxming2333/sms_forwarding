@@ -62,16 +62,38 @@ void pushRetryTick() {
     // 号码已就绪：立即发出
     if (simIsNumberReady()) {
       LOG("Retry", "号码就绪，立即发送，通道索引 %d", t.channelIndex);
-      bool ok = sendPushChannel(t.channelIndex, t.sender, t.message, t.timestamp, t.msgType);
+      // 保存发送参数，因为下方可能修改队列导致引用失效
+      int      chIdx     = t.channelIndex;
+      String   sender    = t.sender;
+      String   message   = t.message;
+      String   timestamp = t.timestamp;
+      MsgType  msgType   = t.msgType;
+      bool ok = sendPushChannel(chIdx, sender, message, timestamp, msgType);
       if (ok) {
-        LOG("Retry", "号码就绪发送成功，通道索引 %d，出队", t.channelIndex);
+        LOG("Retry", "号码就绪发送成功，通道索引 %d，出队", chIdx);
+        s_retryQueue.pop();
+        // 故障转移模式：清除同组其他等待任务，避免后续通道被重复发送
+        if (config.pushStrategy == PUSH_STRATEGY_FAILOVER) {
+          size_t remaining = s_retryQueue.size();
+          for (size_t j = 0; j < remaining; j++) {
+            RetryEntry e = std::move(s_retryQueue.front());
+            s_retryQueue.pop();
+            if (e.task.reason == RetryReason::WAITING_NUMBER &&
+                e.task.sender    == sender    &&
+                e.task.message   == message   &&
+                e.task.timestamp == timestamp) {
+              LOG("Retry", "故障转移模式：已成功，丢弃同组等待任务，通道索引 %d", e.task.channelIndex);
+            } else {
+              s_retryQueue.push(e);
+            }
+          }
+        }
       } else {
-        LOG("Retry", "号码就绪但发送失败，通道索引 %d，转为普通重试", t.channelIndex);
+        LOG("Retry", "号码就绪但发送失败，通道索引 %d，转为普通重试", chIdx);
         front.task.reason = RetryReason::SEND_FAILED;
         front.nextRetryMs = millis() + PUSH_RETRY_INTERVAL_MS;
         return;
       }
-      s_retryQueue.pop();
       return;
     }
     // 号码尚未就绪：30s 后再检查
