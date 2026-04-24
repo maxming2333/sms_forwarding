@@ -20,3 +20,14 @@ void otaUploadChunkController(AsyncWebServerRequest* request,
                               uint8_t* data,
                               size_t len,
                               bool final);
+
+// POST /api/ota/upload-fs 的 onRequest 回调（LittleFS 上传完成后发送最终响应）
+void otaUploadFsCompleteController(AsyncWebServerRequest* request);
+
+// POST /api/ota/upload-fs 的 onUpload 回调（逐块写入 LittleFS 分区）
+void otaUploadFsChunkController(AsyncWebServerRequest* request,
+                                const String& filename,
+                                size_t index,
+                                uint8_t* data,
+                                size_t len,
+                                bool final);

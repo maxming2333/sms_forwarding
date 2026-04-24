@@ -368,9 +368,14 @@
             <div id="otaUpToDate" class="hint" style="color:#4CAF50;display:none;">✅ 已是最新版本，无需升级</div>
         </div>
         <div id="otaUploadArea" style="margin-top:15px;border-top:1px solid #eee;padding-top:12px;">
-            <label style="display:block;margin-bottom:5px;font-weight:bold;color:#555;">手动上传固件（.bin 文件）</label>
+            <label style="display:block;margin-bottom:5px;font-weight:bold;color:#555;">手动上传固件（ota-*.bin）</label>
             <input type="file" id="otaFile" accept=".bin" style="margin-bottom:8px;">
-            <button type="button" id="otaUploadBtn" onclick="startManualUpgrade()" style="background:#FF9800;">📂 手动升级</button>
+            <button type="button" id="otaUploadBtn" onclick="startManualUpgrade()" style="background:#FF9800;">📂 手动升级固件</button>
+        </div>
+        <div id="otaUploadFsArea" style="margin-top:12px;border-top:1px solid #eee;padding-top:12px;">
+            <label style="display:block;margin-bottom:5px;font-weight:bold;color:#555;">单独更新 Web UI（littlefs-*.bin）</label>
+            <input type="file" id="otaFsFile" accept=".bin" style="margin-bottom:8px;">
+            <button type="button" id="otaUploadFsBtn" onclick="startManualLfsUpgrade()" style="background:#607D8B;">📂 手动更新 Web UI</button>
         </div>
         <div class="hint" style="margin-top:8px;color:#e65100;">⚠️ 升级期间请勿断电，升级成功后设备将自动重启</div>
     </div>
@@ -824,8 +829,9 @@
 
   function otaStateLabel(state) {
     var map = {
-      idle: '空闲', checking: '正在检查版本...', downloading: '下载中...',
-      writing: '写入中...', success: '升级成功，重启中...', failed: '升级失败'
+      idle: '空闲', checking: '正在检查版本...', downloading: '下载固件中...',
+      writing: '写入固件中...', flashing_fs: '写入 Web UI 中...',
+      success: '升级成功，重启中...', failed: '升级失败'
     };
     return map[state] || state;
   }
@@ -1007,6 +1013,56 @@
       })
       .catch(function (e) {
         btn.disabled = false;
+        otaInUpgrade = false;
+        progress.className = 'result-box result-error';
+        progress.textContent = '❌ 上传失败: ' + e.message;
+      });
+
+    startOtaPolling();
+  }
+
+  function startManualLfsUpgrade() {
+    var fileInput = document.getElementById('otaFsFile');
+    var btn = document.getElementById('otaUploadFsBtn');
+    var progress = document.getElementById('otaProgress');
+
+    if (!fileInput.files || fileInput.files.length === 0) {
+      progress.className = 'result-box result-error';
+      progress.style.display = 'block';
+      progress.textContent = '❌ 请先选择 LittleFS .bin 文件';
+      return;
+    }
+
+    var file = fileInput.files[0];
+    if (!confirm('确定要上传并更新 Web UI 吗？\n\n文件：' + file.name + '\n大小：' + (file.size / 1024).toFixed(1) + ' KB\n\n更新成功后设备将自动重启。')) return;
+
+    btn.disabled = true;
+    document.getElementById('otaUploadBtn').disabled = true;
+    otaInUpgrade = true;
+    progress.className = 'result-box result-loading';
+    progress.style.display = 'block';
+    progress.textContent = '正在上传 Web UI，请稍候...';
+
+    var form = new FormData();
+    form.append('filesystem', file);
+
+    fetch('/api/ota/upload-fs', {method: 'POST', body: form})
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        btn.disabled = false;
+        document.getElementById('otaUploadBtn').disabled = false;
+        otaInUpgrade = false;
+        if (d.success) {
+          progress.className = 'result-box result-success';
+          progress.textContent = '✅ ' + (d.message || '上传成功，设备即将重启');
+        } else {
+          progress.className = 'result-box result-error';
+          progress.textContent = '❌ ' + (d.message || '上传失败');
+        }
+      })
+      .catch(function (e) {
+        btn.disabled = false;
+        document.getElementById('otaUploadBtn').disabled = false;
         otaInUpgrade = false;
         progress.className = 'result-box result-error';
         progress.textContent = '❌ 上传失败: ' + e.message;

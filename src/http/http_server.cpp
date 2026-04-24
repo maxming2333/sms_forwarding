@@ -96,6 +96,10 @@ void setupHttpServer(AsyncWebServer& server) {
     otaUploadCompleteController,
     otaUploadChunkController,
     nullptr);
+  server.on("/api/ota/upload-fs", HTTP_POST,
+    otaUploadFsCompleteController,
+    otaUploadFsChunkController,
+    nullptr);
 
   // Suppress LittleFS error logs for common browser auto-requests
   server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest* request) {

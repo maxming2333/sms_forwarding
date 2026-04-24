@@ -13,6 +13,7 @@ static const char* otaStateToStr(OtaState s) {
         case OtaState::WRITING:     return "writing";
         case OtaState::SUCCESS:     return "success";
         case OtaState::FAILED:      return "failed";
+        case OtaState::FLASHING_FS: return "flashing_fs";
         default:                    return "idle";
     }
 }
@@ -112,6 +113,54 @@ void otaUploadCompleteController(AsyncWebServerRequest* request) {
         request->send(resp);
     } else {
         // 并发冲突或状态异常
+        AsyncJsonResponse* resp = new AsyncJsonResponse();
+        resp->setCode(409);
+        JsonObject root = resp->getRoot();
+        root["success"] = false;
+        root["message"] = "升级状态异常，请刷新后重试";
+        resp->setLength();
+        request->send(resp);
+    }
+}
+
+// ── POST /api/ota/upload-fs — onUpload 回调（逐块写入 LittleFS） ──
+void otaUploadFsChunkController(AsyncWebServerRequest* request,
+                                const String& /*filename*/,
+                                size_t index,
+                                uint8_t* data,
+                                size_t len,
+                                bool final) {
+    size_t totalSize = 0;
+    if (request->hasHeader("Content-Length")) {
+        totalSize = (size_t)request->header("Content-Length").toInt();
+    }
+    bool ok = otaHandleLfsUploadChunk(data, len, index, totalSize, final);
+    if (!ok) {
+        request->send(500, "application/json",
+                      "{\"success\":false,\"message\":\"LittleFS 写入失败\"}");
+    }
+}
+
+// ── POST /api/ota/upload-fs — onRequest 回调（发送最终响应） ───────
+void otaUploadFsCompleteController(AsyncWebServerRequest* request) {
+    OtaStatusPayload status = otaGetStatus();
+
+    if (status.state == OtaState::SUCCESS) {
+        AsyncJsonResponse* resp = new AsyncJsonResponse();
+        JsonObject root = resp->getRoot();
+        root["success"] = true;
+        root["message"] = "Web UI 上传成功，设备即将重启";
+        resp->setLength();
+        request->send(resp);
+    } else if (status.state == OtaState::FAILED) {
+        AsyncJsonResponse* resp = new AsyncJsonResponse();
+        resp->setCode(500);
+        JsonObject root = resp->getRoot();
+        root["success"] = false;
+        root["message"] = status.message.isEmpty() ? "LittleFS 上传失败" : status.message;
+        resp->setLength();
+        request->send(resp);
+    } else {
         AsyncJsonResponse* resp = new AsyncJsonResponse();
         resp->setCode(409);
         JsonObject root = resp->getRoot();

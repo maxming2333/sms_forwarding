@@ -1,5 +1,7 @@
 #include "ota_manager.h"
 #include <esp_ota_ops.h>
+#include <esp_partition.h>
+#include <LittleFS.h>
 #include <HTTPClient.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -17,6 +19,11 @@ static volatile bool           g_inProgress = false;
 static esp_ota_handle_t        g_otaHandle  = 0;
 static const esp_partition_t*  g_otaPart    = nullptr;
 static TaskHandle_t            g_taskHandle = nullptr;
+
+// LittleFS 手动上传专用状态
+static const esp_partition_t*  g_lfsPart        = nullptr;
+static size_t                  g_lfsWriteOffset = 0;
+static size_t                  g_lfsTotalSize   = 0;
 
 // ── otaInit ──────────────────────────────────────────────────────
 void otaInit() {
@@ -227,6 +234,92 @@ static void onlineUpgradeTask(void* /*param*/) {
         otaTaskAbort("固件校验失败: " + String(esp_err_to_name(err)));
     }
 
+    // --- 阶段3: 下载并写入 LittleFS 分区 ---
+    String fsUrl = String(OTA_RELEASES_BASE_URL)
+                   + "/download/" + latestTag
+                   + "/littlefs-" + latestTag + ".bin";
+    LOG("OTA", "开始下载 LittleFS: %s", fsUrl.c_str());
+    g_state    = OtaState::FLASHING_FS;
+    g_progress = 0;
+    g_message  = "正在下载 Web UI...";
+
+    const esp_partition_t* fsPart = esp_partition_find_first(
+        ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, nullptr);
+    if (!fsPart) {
+        LOG("OTA", "找不到 LittleFS 分区，跳过 Web UI 升级");
+        // 不中止升级，仅写入固件
+    } else {
+        HTTPClient fsHttp;
+        httpClientBegin(fsHttp, fsUrl);
+        fsHttp.setTimeout(OTA_HTTP_TIMEOUT_MS);
+        fsHttp.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+        fsHttp.setRedirectLimit(10);
+        int fsCode = fsHttp.GET();
+        if (fsCode != 200) {
+            fsHttp.end();
+            LOG("OTA", "LittleFS 下载 HTTP 响应码: %d，跳过 Web UI 升级", fsCode);
+            // 不中止，仅升级固件
+        } else {
+            int fsContentLen = fsHttp.getSize();
+            LOG("OTA", "LittleFS 大小: %d 字节", fsContentLen);
+            g_message = "正在写入 Web UI...";
+
+            // 卸载 LittleFS，再擦除分区
+            LittleFS.end();
+            esp_err_t eraseErr = esp_partition_erase_range(fsPart, 0, fsPart->size);
+            if (eraseErr != ESP_OK) {
+                fsHttp.end();
+                LOG("OTA", "LittleFS 分区擦除失败: %s", esp_err_to_name(eraseErr));
+                otaTaskAbort("Web UI 分区擦除失败: " + String(esp_err_to_name(eraseErr)));
+            }
+
+            WiFiClient* fsStream = fsHttp.getStreamPtr();
+            uint8_t fsBuf[512];
+            int fsTotalWritten  = 0;
+            int fsRemaining     = fsContentLen;
+            bool fsFailed       = false;
+            unsigned long fsLastDataMs = millis();
+
+            while (fsHttp.connected() && (fsRemaining > 0 || fsRemaining == -1)) {
+                int fsAvailable = fsStream->available();
+                if (fsAvailable > 0) {
+                    fsLastDataMs = millis();
+                    int fsToRead  = min(fsAvailable, (int)sizeof(fsBuf));
+                    int fsReadLen = fsStream->readBytes(fsBuf, fsToRead);
+                    if (fsReadLen > 0) {
+                        esp_err_t wErr = esp_partition_write(fsPart, fsTotalWritten, fsBuf, fsReadLen);
+                        if (wErr != ESP_OK) {
+                            LOG("OTA", "LittleFS esp_partition_write 失败: %s", esp_err_to_name(wErr));
+                            fsFailed = true;
+                            break;
+                        }
+                        fsTotalWritten += fsReadLen;
+                        if (fsRemaining > 0) fsRemaining -= fsReadLen;
+                        if (fsContentLen > 0) {
+                            g_progress = (uint8_t)((fsTotalWritten * 100) / fsContentLen);
+                        }
+                    }
+                } else {
+                    if (millis() - fsLastDataMs > (unsigned long)OTA_HTTP_TIMEOUT_MS) {
+                        LOG("OTA", "LittleFS 下载超时，已写入 %d/%d 字节", fsTotalWritten, fsContentLen);
+                        fsFailed = true;
+                        break;
+                    }
+                    vTaskDelay(pdMS_TO_TICKS(10));
+                }
+            }
+            fsHttp.end();
+
+            if (fsFailed || (fsContentLen > 0 && fsTotalWritten < fsContentLen)) {
+                LOG("OTA", "LittleFS 写入不完整或失败，继续完成固件升级");
+                // 不中止整体 OTA，固件已成功写入
+            } else {
+                LOG("OTA", "LittleFS 写入完成，共 %d 字节", fsTotalWritten);
+            }
+        }
+    }
+
+    // --- 阶段4: 设置启动分区并重启 ---
     err = esp_ota_set_boot_partition(g_otaPart);
     if (err != ESP_OK) {
         LOG("OTA", "esp_ota_set_boot_partition 失败: %s", esp_err_to_name(err));
@@ -363,6 +456,79 @@ bool otaHandleUploadChunk(uint8_t* data, size_t len, size_t index, bool final) {
         LOG("OTA", "手动上传完成，2s 后重启");
 
         // 延时重启（在调用线程/中断上下文中不能用 vTaskDelay，此处使用简单 delay）
+        delay(2000);
+        esp_restart();
+    }
+
+    return true;
+}
+
+// ── otaHandleLfsUploadChunk ───────────────────────────────────────
+bool otaHandleLfsUploadChunk(uint8_t* data, size_t len, size_t index, size_t totalSize, bool final) {
+    if (index == 0) {
+        // 第一块：初始化
+        if (g_inProgress) return false;
+        g_inProgress     = true;
+        g_state          = OtaState::FLASHING_FS;
+        g_progress       = 0;
+        g_message        = "正在写入 Web UI...";
+        g_lfsWriteOffset = 0;
+        g_lfsTotalSize   = totalSize;
+
+        g_lfsPart = esp_partition_find_first(
+            ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, nullptr);
+        if (!g_lfsPart) {
+            g_state   = OtaState::FAILED;
+            g_message = "找不到 LittleFS 分区";
+            LOG("OTA", "LittleFS 手动上传：找不到分区");
+            vTaskDelay(pdMS_TO_TICKS(5000));
+            g_inProgress = false;
+            g_state      = OtaState::IDLE;
+            return false;
+        }
+
+        // 卸载 LittleFS，擦除整个分区
+        LittleFS.end();
+        esp_err_t eraseErr = esp_partition_erase_range(g_lfsPart, 0, g_lfsPart->size);
+        if (eraseErr != ESP_OK) {
+            g_state   = OtaState::FAILED;
+            g_message = "LittleFS 分区擦除失败: " + String(esp_err_to_name(eraseErr));
+            LOG("OTA", "LittleFS 手动上传 esp_partition_erase_range 失败: %s", esp_err_to_name(eraseErr));
+            vTaskDelay(pdMS_TO_TICKS(5000));
+            g_inProgress = false;
+            g_state      = OtaState::IDLE;
+            return false;
+        }
+        LOG("OTA", "LittleFS 手动上传开始，分区: %s (0x%x, %u 字节)",
+            g_lfsPart->label, (unsigned)g_lfsPart->address, (unsigned)g_lfsPart->size);
+    }
+
+    // 写入当前块
+    if (len > 0) {
+        esp_err_t wErr = esp_partition_write(g_lfsPart, g_lfsWriteOffset, data, len);
+        if (wErr != ESP_OK) {
+            g_state   = OtaState::FAILED;
+            g_message = "LittleFS 写入失败: " + String(esp_err_to_name(wErr));
+            LOG("OTA", "LittleFS 手动上传 esp_partition_write 失败 @ offset %u: %s",
+                (unsigned)g_lfsWriteOffset, esp_err_to_name(wErr));
+            vTaskDelay(pdMS_TO_TICKS(5000));
+            g_inProgress = false;
+            g_state      = OtaState::IDLE;
+            return false;
+        }
+        g_lfsWriteOffset += len;
+        if (g_lfsTotalSize > 0) {
+            g_progress = (uint8_t)((g_lfsWriteOffset * 100) / g_lfsTotalSize);
+        } else if (g_progress < 95) {
+            g_progress += 1;
+        }
+    }
+
+    if (final) {
+        g_progress = 100;
+        g_state    = OtaState::SUCCESS;
+        g_message  = "Web UI 上传成功！设备将在 2 秒后自动重启";
+        LOG("OTA", "LittleFS 手动上传完成，共 %u 字节，2s 后重启", (unsigned)g_lfsWriteOffset);
         delay(2000);
         esp_restart();
     }

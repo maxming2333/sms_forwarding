@@ -9,6 +9,7 @@ enum class OtaState : uint8_t {
     WRITING     = 3,  // 正在写入 Flash（手动上传，逐块写入中）
     SUCCESS     = 4,  // 升级写入完成，设备将在 2s 后自动重启
     FAILED      = 5,  // 升级失败（写入错误、空间不足、传输中断）
+    FLASHING_FS = 6,  // 正在写入 LittleFS 分区（在线升级第二阶段 / 手动上传 FS）
 };
 
 // OTA 状态快照（仅用于 HTTP 响应序列化，不持久化）
@@ -54,3 +55,9 @@ bool otaStartOnlineUpgrade();
 // index=0 表示第一块（需调用 esp_ota_begin）；final=true 表示最后一块
 // 返回 false 表示写入失败
 bool otaHandleUploadChunk(uint8_t* data, size_t len, size_t index, bool final);
+
+// 手动上传 LittleFS：处理单个数据块（由 ESPAsyncWebServer upload 回调逐块调用）
+// index=0 表示第一块（先卸载 LittleFS、擦除分区）；final=true 表示最后一块
+// totalSize: Content-Length（0 表示未知）
+// 返回 false 表示写入失败
+bool otaHandleLfsUploadChunk(uint8_t* data, size_t len, size_t index, size_t totalSize, bool final);
