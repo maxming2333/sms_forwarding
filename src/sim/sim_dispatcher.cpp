@@ -220,7 +220,14 @@ String simQueryPhoneNumber(unsigned long timeoutMs) {
     int q2 = (q1 >= 0) ? resp.indexOf('"', q1 + 1) : -1;
     int q3 = (q2 >= 0) ? resp.indexOf('"', q2 + 1) : -1;
     int q4 = (q3 >= 0) ? resp.indexOf('"', q3 + 1) : -1;
-    if (q3 < 0 || q4 <= q3) return "";
+    if (q3 >= 0 && q4 > q3) return resp.substring(q3 + 1, q4);
 
-    return resp.substring(q3 + 1, q4);
+    // 兜底：部分模组 alpha 字段无引号，格式为 +CNUM: ,"13900001234",type
+    // 与 /query?type=siminfo 端点使用相同的 ,"  解析逻辑
+    int idx = resp.indexOf(",\"", start);
+    if (idx >= 0) {
+        int ei = resp.indexOf('"', idx + 2);
+        if (ei > idx + 2) return resp.substring(idx + 2, ei);
+    }
+    return "";
 }
