@@ -137,7 +137,11 @@ void loop() {
     static unsigned long lastUrlPrint = 0;
     if (millis() - lastUrlPrint >= 3000) {
       lastUrlPrint = millis();
-      LOG("HTTP", "⚠️ 当前号码: %s，请访问 %s 进行配置", simGetPhoneNum().c_str(), getDeviceUrl().c_str());
+      if (wifiManagerGetMode() == WIFI_MODE_AP_ACTIVE) {
+        LOG("HTTP", "⚠️ 当前号码: %s，请访问 %s 配置WiFi，或通过 BLE 配网（设备名: %s）", simGetPhoneNum().c_str(), getDeviceUrl().c_str(), getDeviceName().c_str());
+      } else {
+        LOG("HTTP", "⚠️ 当前号码: %s，请访问 %s 进行配置", simGetPhoneNum().c_str(), getDeviceUrl().c_str());
+      }
     }
   }
 
