@@ -4,13 +4,17 @@
 #include "logger.h"
 #include <time.h>
 
+// NVS 命名空间常量（仅在本文件内使用）
+static constexpr char kNvsSmsConfig[] = "sms_config";
+static constexpr char kNvsRebootCfg[] = "reboot_cfg";
+
 Config config;
 RebootSchedule rebootSchedule;
 
 static Preferences preferences;
 
 void loadConfig() {
-  preferences.begin("sms_config", false);
+  preferences.begin(kNvsSmsConfig, false);
   config.adminPhone = preferences.isKey("adminPhone") ? preferences.getString("adminPhone", "") : "";
   config.webUser    = preferences.isKey("webUser")    ? preferences.getString("webUser", DEFAULT_WEB_USER) : DEFAULT_WEB_USER;
   config.webPass    = preferences.isKey("webPass")    ? preferences.getString("webPass", DEFAULT_WEB_PASS) : DEFAULT_WEB_PASS;
@@ -84,7 +88,7 @@ void loadConfig() {
 }
 
 void saveConfig() {
-  preferences.begin("sms_config", false);
+  preferences.begin(kNvsSmsConfig, false);
   preferences.putString("adminPhone", config.adminPhone);
   preferences.putString("webUser",    config.webUser);
   preferences.putString("webPass",    config.webPass);
@@ -127,7 +131,7 @@ void saveConfig() {
 }
 
 void loadRebootSchedule(RebootSchedule& sched) {
-  preferences.begin("reboot_cfg", false);
+  preferences.begin(kNvsRebootCfg, false);
   sched.enabled   = preferences.getBool("rb_enabled", false);
   sched.mode      = preferences.getUChar("rb_mode", 0);
   sched.hour      = preferences.getUChar("rb_hour", 3);
@@ -137,7 +141,7 @@ void loadRebootSchedule(RebootSchedule& sched) {
 }
 
 void saveRebootSchedule(const RebootSchedule& sched) {
-  preferences.begin("reboot_cfg", false);
+  preferences.begin(kNvsRebootCfg, false);
   preferences.putBool("rb_enabled",    sched.enabled);
   preferences.putUChar("rb_mode",      sched.mode);
   preferences.putUChar("rb_hour",      sched.hour);
@@ -173,7 +177,7 @@ void rebootTick() {
     static bool lastRebootLoaded = false;
     if (!lastRebootLoaded) {
       Preferences p;
-      p.begin("reboot_cfg", true);
+      p.begin(kNvsRebootCfg, true);
       lastRebootEpoch = p.getUInt("rb_last_epoch", 0);
       p.end();
       lastRebootLoaded = true;
@@ -193,7 +197,7 @@ void rebootTick() {
     if (now >= triggerEpoch && now < triggerEpoch + 60 && lastRebootEpoch < (uint32_t)triggerEpoch) {
       // 重启前先持久化，防止重启后重复触发
       Preferences p;
-      p.begin("reboot_cfg", false);
+      p.begin(kNvsRebootCfg, false);
       p.putUInt("rb_last_epoch", (uint32_t)now);
       p.end();
       LOG("Config", "定时重启触发（每日模式）");
@@ -204,10 +208,10 @@ void rebootTick() {
 
 void resetConfig() {
   Preferences p;
-  p.begin("sms_config", false);
+  p.begin(kNvsSmsConfig, false);
   p.clear();
   p.end();
-  p.begin("reboot_cfg", false);
+  p.begin(kNvsRebootCfg, false);
   p.clear();
   p.end();
 

@@ -2,6 +2,7 @@
 #include "ble/blufi_handler.h"
 #include <WiFi.h>
 #include <esp_task_wdt.h>
+#include <esp_wifi.h>
 #include "config/config.h"
 #include "logger.h"
 
@@ -20,10 +21,12 @@ static int           s_reconnAttempt = 0;
 static unsigned long s_lastAttemptMs = 0;
 
 static void enterAPMode() {
-  WiFi.softAP("SMS-Forwarder-AP");
+  WiFi.softAP(kApSsid);
+  // AP 模式下必须启用 Modem Sleep，否则 WiFi 持续占用射频，BLE 无法发送广播包
+  esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
   s_mode    = WIFI_MODE_AP_ACTIVE;
   s_initDone = true;
-  LOG("WiFi", "AP模式启动，SSID: SMS-Forwarder-AP，IP: 192.168.4.1");
+  LOG("WiFi", "AP模式启动，SSID: %s，IP: 192.168.4.1", kApSsid);
   blufiInit();
 }
 
@@ -184,7 +187,7 @@ String getDeviceId() {
 }
 
 String getDeviceName() {
-  return "SMS-Forwarder-" + getDeviceId();
+  return String(APP_NAME "-") + getDeviceId();
 }
 
 void wifiManagerSetReconnectCallback(WifiReconnectCallback cb) {

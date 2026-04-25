@@ -39,6 +39,12 @@ constexpr int MAX_BLACKLIST_ENTRIES = 20;
 #define DEFAULT_WEB_USER "admin"
 #define DEFAULT_WEB_PASS "admin123"
 
+// 应用名称常量（用宏支持字符串字面量拼接）
+#define APP_NAME    "SMS-Forwarder"
+#define APP_AUTHOR  "keroming"
+constexpr char kAppName[] = APP_NAME;        // 基础名称
+constexpr char kApSsid[]  = APP_NAME "-AP";  // WiFi AP 模式 SSID
+
 struct PushChannel {
   bool     enabled;
   PushType type;

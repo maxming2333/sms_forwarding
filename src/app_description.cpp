@@ -1,4 +1,5 @@
 #include <esp_app_format.h>
+#include "config/config.h"
 
 // extern "C" directly on definition (not inside a block) gives true external
 // C linkage — overriding the arduino-lib-builder copy in libapp_update.a.
@@ -11,7 +12,7 @@ esp_app_desc_t esp_app_desc = {
     /* secure_version */ 0,
     /* reserv1        */ {0, 0},
     /* version        */ APP_VERSION,
-    /* project_name   */ "sms-forwarding by keroming",
+    /* project_name   */ APP_NAME " by " APP_AUTHOR,
     /* time           */ APP_BUILD_TIME,
     /* date           */ APP_BUILD_DATE,
     /* idf_ver        */ IDF_VER,
