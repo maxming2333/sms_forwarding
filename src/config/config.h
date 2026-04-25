@@ -101,3 +101,4 @@ bool isConfigValid();
 // 新增或修改 Config / RebootSchedule 字段时只需更新这两个函数即可。
 void configToJson(JsonDocument& doc);
 void configFromJson(JsonDocument& doc);
+void insertWifiFirst(const String& ssid, const String& pass);

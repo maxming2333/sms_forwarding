@@ -1,4 +1,5 @@
 #include "blufi_handler.h"
+#include "blufi_security.h"
 #include "config/config.h"
 #include "wifi/wifi_manager.h"
 #include "logger.h"
@@ -10,44 +11,18 @@ extern "C" {
 #include <esp_bt.h>
 #include <esp_gap_ble_api.h>
 #include <esp_bt_main.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 // ---------- internal state ----------
 
-static bool   s_blufiInitialized = false;
-static String s_deviceName       = "";
-static String s_pendingSsid      = "";
-static String s_pendingPass      = "";
+static bool   s_blufiInitialized  = false;
+static bool   s_provisioningDone  = false;  // REQ_CONNECT_TO_AP 成功后置位，BLE_DISCONNECT 时操作
+static String s_deviceName        = "";
+static String s_pendingSsid       = "";
+static String s_pendingPass       = "";
 
-// ---------- helpers ----------
-
-// WiFi 优先级插入：将新 SSID 插到 wifiList 首位
-static void insertWifiFirst(const String& ssid, const String& pass) {
-  // 查找重复 SSID
-  int dupIdx = -1;
-  for (int i = 0; i < config.wifiCount; i++) {
-    if (config.wifiList[i].ssid == ssid) {
-      dupIdx = i;
-      break;
-    }
-  }
-  if (dupIdx >= 0) {
-    // 移除重复条目
-    for (int i = dupIdx; i < config.wifiCount - 1; i++) {
-      config.wifiList[i] = config.wifiList[i + 1];
-    }
-    config.wifiCount--;
-  }
-  // 前移所有现有条目
-  int newCount = min(config.wifiCount + 1, MAX_WIFI_ENTRIES);
-  for (int i = newCount - 1; i > 0; i--) {
-    config.wifiList[i] = config.wifiList[i - 1];
-  }
-  config.wifiList[0].ssid     = ssid;
-  config.wifiList[0].password = pass;
-  config.wifiCount = newCount;
-  saveConfig();
-  LOG("BluFi", "WiFi已插入首位: %s，列表共 %d 条", ssid.c_str(), config.wifiCount);
-}
+// 异步延迟重启在 BLE_DISCONNECT 里通过 xTaskCreate 内联 lambda 实现
 
 // ---------- 广播参数 ----------
 
@@ -133,10 +108,36 @@ static void configureScanResponse() {
 
 static void blufiEventCallback(esp_blufi_cb_event_t event, esp_blufi_cb_param_t* param) {
   switch (event) {
+    case ESP_BLUFI_EVENT_BLE_CONNECT: {
+      // 停止广播，重置 DH 安全状态，等待配网
+      esp_ble_gap_stop_advertising();
+      blufi_security_reset();
+      s_provisioningDone = false;
+      LOG("BluFi", "BLE 已连接");
+      break;
+    }
+    case ESP_BLUFI_EVENT_BLE_DISCONNECT: {
+      if (s_provisioningDone) {
+        // App 收到成功回包后主动断开，此时整个配网流程真正结束，再异步重启
+        LOG("BluFi", "BLE 已断开（配网完成），即将重启");
+        xTaskCreate([](void*) {
+          // 等 BLE 断开流程在回调任务里完全结束再操作
+          vTaskDelay(pdMS_TO_TICKS(500));
+          // 在独立任务中（非 BLE 回调上下文）完整释放 BLE 栈，
+          // 避免 BT/WiFi 协作状态残留导致重启后 WiFi STA 初始化失败
+          blufiDeinit();
+          ESP.restart();
+        }, "blufi_rst", 4096, nullptr, 5, nullptr);
+      } else {
+        // 普通断开（用户中途退出、还未配网），清除待定数据并重新广播
+        s_pendingSsid.clear();
+        s_pendingPass.clear();
+        startBlufiAdvertising();
+        LOG("BluFi", "BLE 已断开，重新开始广播");
+      }
+      break;
+    }
     case ESP_BLUFI_EVENT_INIT_FINISH: {
-      // esp_blufi_profile_init() 内部将设备名重置为 "BLUFI_DEVICE"；
-      // 在此重新设置，使 GATT Device Name 特征值显示正确名称（异步，不影响广播包）
-      esp_ble_gap_set_device_name(s_deviceName.c_str());
       // 使用原始广播数据：直接将设备名字节嵌入广播包，彻底绕过 set_device_name 的异步竞态。
       // gapEventHandler 收到 ADV_DATA_RAW_SET_COMPLETE_EVT 后调用 esp_ble_gap_start_advertising()。
       startBlufiAdvertising();
@@ -161,25 +162,26 @@ static void blufiEventCallback(esp_blufi_cb_event_t event, esp_blufi_cb_param_t*
       }
       break;
     }
-    case ESP_BLUFI_EVENT_RECV_SLAVE_DISCONNECT_BLE: {
-      LOG("BluFi", "BLE 断开");
+    case ESP_BLUFI_EVENT_REQ_CONNECT_TO_AP: {
+      // App 发送 SSID + PASSWORD 后，会明确发出此命令说明希望设备去连 WiFi。
+      // 此时发 conn_report，App 收到后会主动断开 BLE，在 BLE_DISCONNECT 里再重启。
+      if (s_pendingSsid.length() > 0) {
+        insertWifiFirst(s_pendingSsid, s_pendingPass);
+        s_provisioningDone = true;
+        esp_blufi_extra_info_t info{};
+        // 填入目标 SSID 供 App 展示；BSSID 尚未连接无法填写，保持 bssid_set=false
+        // info.sta_ssid 借用 s_pendingSsid 内部指针，必须在 send_report 之后才能 clear()
+        info.sta_ssid     = (uint8_t*)s_pendingSsid.c_str();
+        info.sta_ssid_len = (int)s_pendingSsid.length();
+        esp_blufi_send_wifi_conn_report(WIFI_MODE_STA, ESP_BLUFI_STA_CONN_SUCCESS, 0, &info);
+        s_pendingSsid.clear();
+        s_pendingPass.clear();
+        LOG("BluFi", "配置已保存，回包成功，等待 App 断开 BLE");
+      }
       break;
     }
     default:
       break;
-  }
-
-  // 当 SSID 和密码均已收到时写入配置并重启
-  // 必须等 PASSWD 事件到达后才触发，避免在仅收到 SSID 时以空密码重启
-  if (event == ESP_BLUFI_EVENT_RECV_STA_PASSWD && s_pendingSsid.length() > 0) {
-    esp_blufi_extra_info_t info{};  // 零初始化，C++17 值初始化替代 memset
-    esp_blufi_send_wifi_conn_report(WIFI_MODE_STA, ESP_BLUFI_STA_CONN_SUCCESS, 0, &info);
-    insertWifiFirst(s_pendingSsid, s_pendingPass);
-    s_pendingSsid.clear();
-    s_pendingPass.clear();
-    blufiDeinit();  // 释放 BLE 资源，避免重启后与 WiFi 射频竞争
-    delay(500);
-    ESP.restart();
   }
 }
 
@@ -230,11 +232,11 @@ void blufiInit() {
 
   // 注册 BluFi 回调
   static esp_blufi_callbacks_t blufiCallbacks = {
-    .event_cb              = blufiEventCallback,
-    .negotiate_data_handler = nullptr,
-    .encrypt_func          = nullptr,
-    .decrypt_func          = nullptr,
-    .checksum_func         = nullptr,
+    .event_cb               = blufiEventCallback,
+    .negotiate_data_handler = blufi_dh_negotiate_data_handler,
+    .encrypt_func           = blufi_aes_encrypt,
+    .decrypt_func           = blufi_aes_decrypt,
+    .checksum_func          = blufi_crc_checksum,
   };
   err = esp_blufi_register_callbacks(&blufiCallbacks);
   if (err != ESP_OK) {

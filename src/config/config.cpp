@@ -8,6 +8,13 @@
 static constexpr char kNvsSmsConfig[] = "sms_config";
 static constexpr char kNvsRebootCfg[] = "reboot_cfg";
 
+// 去除首尾空白（Arduino String::trim() 原地修改，此函数返回副本）
+static String trimStr(const String& s) {
+  String r = s;
+  r.trim();
+  return r;
+}
+
 Config config;
 RebootSchedule rebootSchedule;
 
@@ -89,21 +96,21 @@ void loadConfig() {
 
 void saveConfig() {
   preferences.begin(kNvsSmsConfig, false);
-  preferences.putString("adminPhone", config.adminPhone);
-  preferences.putString("webUser",    config.webUser);
-  preferences.putString("webPass",    config.webPass);
+  preferences.putString("adminPhone", trimStr(config.adminPhone));
+  preferences.putString("webUser",    trimStr(config.webUser));
+  preferences.putString("webPass",    trimStr(config.webPass));
 
   preferences.putUChar("pushCount", (uint8_t)config.pushCount);
   for (int i = 0; i < MAX_PUSH_CHANNELS; i++) {
     String prefix = "push" + String(i);
-    preferences.putBool((prefix + "en").c_str(),   config.pushChannels[i].enabled);
+    preferences.putBool((prefix + "en").c_str(),    config.pushChannels[i].enabled);
     preferences.putUChar((prefix + "type").c_str(), (uint8_t)config.pushChannels[i].type);
-    preferences.putString((prefix + "url").c_str(), config.pushChannels[i].url);
-    preferences.putString((prefix + "name").c_str(), config.pushChannels[i].name);
-    preferences.putString((prefix + "k1").c_str(),  config.pushChannels[i].key1);
-    preferences.putString((prefix + "k2").c_str(),  config.pushChannels[i].key2);
-    preferences.putString((prefix + "body").c_str(), config.pushChannels[i].customBody);
-    preferences.putBool((prefix + "retry").c_str(), config.pushChannels[i].retryOnFail);
+    preferences.putString((prefix + "url").c_str(),  trimStr(config.pushChannels[i].url));
+    preferences.putString((prefix + "name").c_str(), trimStr(config.pushChannels[i].name));
+    preferences.putString((prefix + "k1").c_str(),   trimStr(config.pushChannels[i].key1));
+    preferences.putString((prefix + "k2").c_str(),   trimStr(config.pushChannels[i].key2));
+    preferences.putString((prefix + "body").c_str(), config.pushChannels[i].customBody);  // body 为模板，不 trim
+    preferences.putBool((prefix + "retry").c_str(),  config.pushChannels[i].retryOnFail);
   }
 
   preferences.putBool("simNotify",    config.simNotifyEnabled);
@@ -113,17 +120,17 @@ void saveConfig() {
   for (int i = 0; i < config.wifiCount; i++) {
     String ks = "wifi" + String(i) + "ssid";
     String kp = "wifi" + String(i) + "pass";
-    preferences.putString(ks.c_str(), config.wifiList[i].ssid);
-    preferences.putString(kp.c_str(), config.wifiList[i].password);
+    preferences.putString(ks.c_str(), trimStr(config.wifiList[i].ssid));
+    preferences.putString(kp.c_str(), trimStr(config.wifiList[i].password));
   }
 
   preferences.putUChar("pushStrategy", (uint8_t)config.pushStrategy);
-  preferences.putString("remark", config.remark.substring(0, 64));
+  preferences.putString("remark", trimStr(config.remark).substring(0, 64));
 
   preferences.putInt("blCount", config.blacklistCount);
   for (int i = 0; i < config.blacklistCount; i++) {
     String key = "bl" + String(i);
-    preferences.putString(key.c_str(), config.blacklist[i]);
+    preferences.putString(key.c_str(), trimStr(config.blacklist[i]));
   }
 
   preferences.end();
@@ -390,4 +397,34 @@ void configFromJson(JsonDocument& doc) {
     rebootSchedule.minute    = r["minute"]     | rebootSchedule.minute;
     rebootSchedule.intervalH = r["intervalH"]  | rebootSchedule.intervalH;
   }
+}
+
+// WiFi 优先级插入：将新 SSID 插到 wifiList 首位，已存在则先移除再插入
+void insertWifiFirst(const String& ssid, const String& pass) {
+  String s = trimStr(ssid);
+  String p = trimStr(pass);
+  if (s.length() == 0) return;
+
+  // 查找重复 SSID 并移除
+  int dupIdx = -1;
+  for (int i = 0; i < config.wifiCount; i++) {
+    if (config.wifiList[i].ssid == s) { dupIdx = i; break; }
+  }
+  if (dupIdx >= 0) {
+    for (int i = dupIdx; i < config.wifiCount - 1; i++) {
+      config.wifiList[i] = config.wifiList[i + 1];
+    }
+    config.wifiCount--;
+  }
+
+  // 前移所有现有条目，首位写入新 SSID
+  int newCount = min(config.wifiCount + 1, MAX_WIFI_ENTRIES);
+  for (int i = newCount - 1; i > 0; i--) {
+    config.wifiList[i] = config.wifiList[i - 1];
+  }
+  config.wifiList[0].ssid     = s;
+  config.wifiList[0].password = p;
+  config.wifiCount = newCount;
+  saveConfig();
+  LOG("Config", "WiFi已插入首位: %s，列表共 %d 条", s.c_str(), config.wifiCount);
 }

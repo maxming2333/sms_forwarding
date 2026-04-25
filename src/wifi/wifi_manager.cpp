@@ -63,7 +63,7 @@ void wifiManagerInit() {
 
     const char* ssid = config.wifiList[w].ssid.c_str();
     const char* pass = config.wifiList[w].password.c_str();
-    LOG("WiFi", "尝试第 %d/%d 条WiFi: %s", w + 1, config.wifiCount, ssid);
+    LOG("WiFi", "尝试第 %d/%d 条WiFi: %s(%s)", w + 1, config.wifiCount, ssid, pass);
 
     for (int attempt = 1; attempt <= WIFI_RECONNECT_ATTEMPTS_PER_SSID; attempt++) {
       WiFi.begin(ssid, pass, 0, nullptr, true);
@@ -74,14 +74,14 @@ void wifiManagerInit() {
           s_everConnected = true;
           s_initDone      = true;
           WiFi.setSleep(false);  // 关闭 WiFi Modem Sleep，避免 TCP SYN 丢包导致 3 秒连接延迟
-          LOG("WiFi", "第 %d/%d 条WiFi第 %d/%d 次连接成功，IP: %s", w + 1, config.wifiCount, attempt, WIFI_RECONNECT_ATTEMPTS_PER_SSID, WiFi.localIP().toString().c_str());
+          LOG("WiFi", "第 %d/%d 条WiFi，第 %d/%d 次连接成功，IP: %s", w + 1, config.wifiCount, attempt, WIFI_RECONNECT_ATTEMPTS_PER_SSID, WiFi.localIP().toString().c_str());
           return;
         }
         delay(100);
         esp_task_wdt_reset();
       }
 
-      LOG("WiFi", "第 %d/%d 条WiFi第 %d/%d 次连接超时", w + 1, config.wifiCount, attempt, WIFI_RECONNECT_ATTEMPTS_PER_SSID);
+      LOG("WiFi", "第 %d/%d 条WiFi，第 %d/%d 次连接超时", w + 1, config.wifiCount, attempt, WIFI_RECONNECT_ATTEMPTS_PER_SSID);
       WiFi.disconnect(true);
       delay(300);
       esp_task_wdt_reset();
