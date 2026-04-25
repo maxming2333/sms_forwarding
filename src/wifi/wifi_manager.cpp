@@ -1,5 +1,5 @@
 #include "wifi_manager.h"
-// #include "ble/blufi_handler.h"  // BluFi BLE 配网：启用时同步移除 platformio.ini 中的 build_src_filter
+#include "ble/blufi_handler.h"
 #include <WiFi.h>
 #include <esp_task_wdt.h>
 #include "config/config.h"
@@ -24,7 +24,7 @@ static void enterAPMode() {
   s_mode    = WIFI_MODE_AP_ACTIVE;
   s_initDone = true;
   LOG("WiFi", "AP模式启动，SSID: SMS-Forwarder-AP，IP: 192.168.4.1");
-  // blufiInit();  // BluFi BLE 配网：启用时取消此注释，并恢复上方 include
+  blufiInit();
 }
 
 void wifiManagerInit() {

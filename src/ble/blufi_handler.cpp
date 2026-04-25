@@ -126,6 +126,12 @@ void blufiInit() {
     return;
   }
 
+  // AES-128 加密（已评估，T010/T011）：
+  // 当前 espressif32 Arduino framework 内置的 ESP-IDF 版本中，BluFi AES-128 加密
+  // 需通过 esp_blufi_callbacks_t.encrypt_func / decrypt_func 函数指针实现，
+  // 不存在 esp_blufi_security_init() 单一入口。
+  // 此功能需实现完整的 AES-CBC + DH 密钥协商，范围超出本特性；决策：暂不启用加密。
+
   err = esp_blufi_profile_init();
   if (err != ESP_OK) {
     LOG("BluFi", "BluFi profile 初始化失败: %d", (int)err);
