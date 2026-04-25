@@ -121,12 +121,11 @@ static void blufiEventCallback(esp_blufi_cb_event_t event, esp_blufi_cb_param_t*
         // App 收到成功回包后主动断开，此时整个配网流程真正结束，再异步重启
         LOG("BluFi", "BLE 已断开（配网完成），即将重启");
         xTaskCreate([](void*) {
-          // 等 BLE 断开流程在回调任务里完全结束再操作
-          vTaskDelay(pdMS_TO_TICKS(500));
-          // 在独立任务中（非 BLE 回调上下文）完整释放 BLE 栈，
-          // 避免 BT/WiFi 协作状态残留导致重启后 WiFi STA 初始化失败
-          blufiDeinit();
-          ESP.restart();
+            taskYIELD();  // 让 BTC 任务先跑完
+            vTaskDelay(pdMS_TO_TICKS(500));
+            blufiDeinit();
+            vTaskDelay(pdMS_TO_TICKS(500));
+            ESP.restart();
         }, "blufi_rst", 4096, nullptr, 5, nullptr);
       } else {
         // 普通断开（用户中途退出、还未配网），清除待定数据并重新广播

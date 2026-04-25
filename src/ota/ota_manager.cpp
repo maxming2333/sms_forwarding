@@ -468,9 +468,11 @@ bool otaHandleUploadChunk(uint8_t* data, size_t len, size_t index, bool final) {
         g_message  = "上传成功！设备将在 2 秒后自动重启";
         LOG("OTA", "手动上传完成，2s 后重启");
 
-        // 延时重启（在调用线程/中断上下文中不能用 vTaskDelay，此处使用简单 delay）
-        delay(2000);
-        esp_restart();
+        xTaskCreate([](void*) {
+            vTaskDelay(pdMS_TO_TICKS(2000));
+            esp_restart();
+            vTaskDelete(nullptr);
+        }, "ota_rst", 2048, nullptr, 5, nullptr);
     }
 
     return true;
@@ -542,8 +544,11 @@ bool otaHandleLfsUploadChunk(uint8_t* data, size_t len, size_t index, size_t tot
         g_state    = OtaState::SUCCESS;
         g_message  = "Web UI 上传成功！设备将在 2 秒后自动重启";
         LOG("OTA", "LittleFS 手动上传完成，共 %u 字节，2s 后重启", (unsigned)g_lfsWriteOffset);
-        delay(2000);
-        esp_restart();
+        xTaskCreate([](void*) {
+            vTaskDelay(pdMS_TO_TICKS(2000));
+            esp_restart();
+            vTaskDelete(nullptr);
+        }, "lfs_rst", 2048, nullptr, 5, nullptr);
     }
 
     return true;
