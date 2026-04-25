@@ -29,6 +29,10 @@ static void serializeOtaStatus(const OtaStatusPayload& p, JsonObject& root) {
 
 // ── GET /api/ota/status ───────────────────────────────────────────
 void otaStatusController(AsyncWebServerRequest* request) {
+    // 若当前空闲则自动触发版本检查（含防抖）
+    if (otaGetStatus().state == OtaState::IDLE) {
+        otaStartVersionCheck();
+    }
     AsyncJsonResponse* resp = new AsyncJsonResponse();
     JsonObject root = resp->getRoot();
     OtaStatusPayload status = otaGetStatus();
@@ -55,10 +59,21 @@ void otaVersionController(AsyncWebServerRequest* request) {
 }
 
 // ── POST /api/ota/start ───────────────────────────────────────────
-void otaStartController(AsyncWebServerRequest* request) {
-    bool started = otaStartOnlineUpgrade();
+void otaStartController(AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
+    if (index + len < total) return;
+
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, data, len);
+    String targetTag = err ? String() : (doc["tag"] | String());
+    targetTag.trim();
+
+    if (targetTag.isEmpty()) {
+        request->send(400, "application/json", "{\"success\":false,\"message\":\"缺少或无效的 tag 参数\"}");
+        return;
+    }
+
+    bool started = otaStartOnlineUpgrade(targetTag);
     if (!started) {
-        // 已有升级进行中
         AsyncJsonResponse* resp = new AsyncJsonResponse();
         resp->setCode(409);
         JsonObject root = resp->getRoot();

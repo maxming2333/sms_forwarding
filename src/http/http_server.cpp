@@ -91,7 +91,10 @@ void setupHttpServer(AsyncWebServer& server) {
   // OTA upgrade API
   server.on("/api/ota/status",  HTTP_GET,  otaStatusController);
   server.on("/api/ota/version", HTTP_GET,  otaVersionController);
-  server.on("/api/ota/start",   HTTP_POST, otaStartController);
+  server.on("/api/ota/start",   HTTP_POST,
+    [](AsyncWebServerRequest* request) {},
+    nullptr,
+    otaStartController);
   server.on("/api/ota/upload",  HTTP_POST,
     otaUploadCompleteController,
     otaUploadChunkController,

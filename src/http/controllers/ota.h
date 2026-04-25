@@ -7,8 +7,8 @@ void otaStatusController(AsyncWebServerRequest* request);
 // GET /api/ota/version — 触发版本检查（若 IDLE 则启动后台任务），返回状态快照
 void otaVersionController(AsyncWebServerRequest* request);
 
-// POST /api/ota/start — 触发在线升级（下载 + 写入 + 重启）
-void otaStartController(AsyncWebServerRequest* request);
+// POST /api/ota/start 的 onBody 回调（接收 JSON {tag}，触发在线升级）
+void otaStartController(AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total);
 
 // POST /api/ota/upload 的 onRequest 回调（上传完成后发送最终响应）
 void otaUploadCompleteController(AsyncWebServerRequest* request);

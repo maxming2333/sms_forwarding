@@ -48,8 +48,9 @@ OtaStatusPayload otaGetStatus();
 void otaStartVersionCheck();
 
 // 启动后台在线升级任务（非阻塞，直接下载并刷写固件）
-// 返回 false 表示当前已有升级在进行中
-bool otaStartOnlineUpgrade();
+// targetTag: 要升级到的版本 tag（由前端从 /api/ota/status 取得后传入，不可为空）
+// 返回 false 表示当前已有升级在进行中或 tag 为空
+bool otaStartOnlineUpgrade(const String& targetTag);
 
 // 手动上传：处理单个数据块（由 ESPAsyncWebServer upload 回调逐块调用）
 // index=0 表示第一块（需调用 esp_ota_begin）；final=true 表示最后一块
