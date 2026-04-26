@@ -98,12 +98,14 @@ static void enterAPMode() {
 
 void wifiManagerInit() {
   // 重置重连状态机（支持重复调用）
-  s_reconnState   = RECONNECT_IDLE;
-  s_reconnWIdx    = 0;
-  s_reconnAttempt = 0;
-  s_lastAttemptMs = 0;
-  s_everConnected = false;
-  s_initDone      = false;
+  s_reconnState    = RECONNECT_IDLE;
+  s_reconnWIdx     = 0;
+  s_reconnAttempt  = 0;
+  s_lastAttemptMs  = 0;
+  s_apRescanNextMs = 0;
+  s_reconnFromAP   = false;
+  s_everConnected  = false;
+  s_initDone       = false;
 
   // 软重启（ESP.restart）后 WiFi 驱动状态可能残留，强制关闭后再初始化
   WiFi.disconnect(true);
@@ -124,7 +126,15 @@ void wifiManagerInit() {
   // 扫描所有信道以连接信号最强的 AP，防止在 mesh 组网这类场景中连接到弱 AP
   WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
 
-  for (int w = 0; w < config.wifiCount; w++) {
+  // 扫描当前环境 WiFi，优先连接可见 SSID
+  WiFi.scanNetworks(false);  // 阻塞扫描，此处处于 setup() 或 AP 恢复前，WDT 已有保护
+  esp_task_wdt_reset();
+  int initOrder[MAX_WIFI_ENTRIES] = {};
+  int initMatchCount = buildSortedWifiOrder(initOrder, config.wifiCount);
+  LOG("WiFi", "扫描完成，%d/%d 条配置SSID当前可见，将优先连接", initMatchCount, config.wifiCount);
+
+  for (int oi = 0; oi < config.wifiCount; oi++) {
+    int w = initOrder[oi];
     if (config.wifiList[w].ssid.length() == 0) continue;
 
     const char* ssid = config.wifiList[w].ssid.c_str();
