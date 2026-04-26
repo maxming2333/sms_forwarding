@@ -237,7 +237,15 @@ void wifiManagerTick() {
           s_reconnWIdx++;
         }
         if (s_reconnWIdx >= config.wifiCount) {
-          // 所有 SSID 已尝试完一轮，重置回首条循环
+          // 所有 SSID 已尝试完一轮
+          if (s_reconnFromAP) {
+            // 来自 AP 恢复的重连，全部失败则退回 AP 模式，等待下一轮后台扫描
+            LOG("WiFi", "AP恢复重连全部失败，重新进入AP模式等待下次扫描");
+            s_reconnFromAP = false;
+            enterAPMode();
+            return;
+          }
+          // 普通 STA 断线重连，重置后继续无限循环
           s_reconnWIdx    = 0;
           s_reconnAttempt = 0;
           LOG("WiFi", "所有 SSID 重连均失败，重置循环重试");
