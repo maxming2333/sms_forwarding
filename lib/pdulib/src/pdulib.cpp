@@ -648,6 +648,9 @@ int PDU::pduGsm7_to_unicode(const char *pdu, int numSeptets, char *unicode, char
   return length;
 }
 
+bool SPstart = false;
+unsigned short spair[2]; // save surrogate pair
+
 /*
   Decode a complete message
   returns true for success else false
@@ -805,9 +808,6 @@ bool PDU::decodePDU(const char *pdu)
 #define BITS76ON 0B11000000
 #define BIT7ON6OFF 0B10000000
 #define BITS0TO5ON 0B00111111
-bool SPstart = false;
-unsigned short spair[2]; // save surrogate pair
-
 int PDU::ucs2_to_utf8(unsigned short ucs2, char *outbuf)
 {
   if (/*ucs2>=0 and*/ ucs2 <= 0x7f) // 7F(16) = 127(10)
