@@ -90,8 +90,10 @@ static void enterAPMode() {
   WiFi.softAP(kApSsid);
   // AP 模式下必须启用 Modem Sleep，否则 WiFi 持续占用射频，BLE 无法发送广播包
   esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
-  s_mode    = WIFI_MODE_AP_ACTIVE;
-  s_initDone = true;
+  s_mode           = WIFI_MODE_AP_ACTIVE;
+  s_initDone       = true;
+  s_reconnState    = RECONNECT_IDLE;       // 清除可能残留的扫描等待状态
+  s_apRescanNextMs = millis() + WIFI_AP_RESCAN_INTERVAL_MS;  // 30s 后首次后台扫描
   LOG("WiFi", "AP模式启动，SSID: %s，IP: 192.168.4.1", kApSsid);
   blufiInit();
 }
