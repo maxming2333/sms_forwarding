@@ -164,7 +164,7 @@ void loop() {
       "设备已启动"
       "\n设备地址: " + getDeviceUrl() +
       "\nMAC: " + WiFi.macAddress() +
-      "\n固件版本: " + String(APP_VERSION),
+      "\n固件版本: " + otaGetVersion(),
       timeModuleGetDateStr(), MSG_TYPE_SIM);
   }
 

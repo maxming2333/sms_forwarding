@@ -37,6 +37,10 @@ static constexpr UBaseType_t OTA_TASK_PRIORITY = 1;
 // HTTPS 请求超时（ms）
 static constexpr int OTA_HTTP_TIMEOUT_MS = 15000;
 
+// 构建与 GitHub release tag 一致的完整版本号字符串
+// 格式：<prefix>-<YYYYMMDD>T<HHmmss>-<sha>，例如 v1-20260423T210356-551f992
+String otaGetVersion();
+
 // 初始化：读取当前固件版本，重置所有 OTA 状态
 void otaInit();
 

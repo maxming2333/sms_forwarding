@@ -36,33 +36,34 @@ static void beginHttpClient(HTTPClient& http, WiFiClientSecure& tlsClient, const
     }
 }
 
-// ── otaInit ──────────────────────────────────────────────────────
-void otaInit() {
+// ── otaGetVersion ────────────────────────────────────────
+String otaGetVersion() {
     // 重建与 GitHub release tag 一致的完整版本号：
     //   APP_VERSION   = "v1-551f992"        (prefix-sha)
     //   release tag   = "v1-20260423T210356-551f992" (prefix-dateTimestamp-sha)
     // APP_BUILD_DATE = "2026-04-23" → 去除 '-' → "20260423"
     // APP_BUILD_TIME = "21:03:56"   → 去除 ':' → "210356"
-    {
-        String ver = String(APP_VERSION);
-        int lastDash = ver.lastIndexOf('-');
-        if (lastDash > 0) {
-            String prefix      = ver.substring(0, lastDash);
-            String sha         = ver.substring(lastDash + 1);
-            String dateCompact = String(APP_BUILD_DATE); dateCompact.replace("-", "");
-            String timeCompact = String(APP_BUILD_TIME); timeCompact.replace(":", "");
-            g_currentVer = prefix + "-" + dateCompact + "T" + timeCompact + "-" + sha;
-        } else {
-            g_currentVer = ver;
-        }
+    String ver = String(APP_VERSION);
+    int lastDash = ver.lastIndexOf('-');
+    if (lastDash > 0) {
+        String prefix      = ver.substring(0, lastDash);
+        String sha         = ver.substring(lastDash + 1);
+        String dateCompact = String(APP_BUILD_DATE); dateCompact.replace("-", "");
+        String timeCompact = String(APP_BUILD_TIME); timeCompact.replace(":", "");
+        return prefix + "-" + dateCompact + "T" + timeCompact + "-" + sha;
     }
+    return ver;
+}
+
+// ── otaInit ──────────────────────────────────────────────────────
+void otaInit() {
+    g_currentVer = otaGetVersion();
     g_state      = OtaState::IDLE;
     g_progress   = 0;
     g_message    = "";
     g_latestVer  = "";
     g_inProgress = false;
-    LOG("OTA", "初始化完成，版本: %s | 编译: %s %s",
-        g_currentVer.c_str(), APP_BUILD_DATE, APP_BUILD_TIME);
+    LOG("OTA", "初始化完成，版本: %s | 编译: %s %s", g_currentVer.c_str(), APP_BUILD_DATE, APP_BUILD_TIME);
 }
 
 // ── otaGetStatus ─────────────────────────────────────────────────
