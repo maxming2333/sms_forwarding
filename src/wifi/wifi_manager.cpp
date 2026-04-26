@@ -133,6 +133,7 @@ void wifiManagerInit() {
   esp_task_wdt_reset();
   int initOrder[MAX_WIFI_ENTRIES] = {};
   int initMatchCount = buildSortedWifiOrder(initOrder, config.wifiCount);
+  WiFi.scanDelete();  // 释放阻塞扫描结果内存（与 AP tick 路径保持一致）
   LOG("WiFi", "扫描完成，%d/%d 条配置SSID当前可见，将优先连接", initMatchCount, config.wifiCount);
 
   for (int oi = 0; oi < config.wifiCount; oi++) {
@@ -179,10 +180,19 @@ void wifiManagerTick() {
 
     if (s_reconnState == RECONNECT_AP_SCAN_WAIT) {
       int n = WiFi.scanComplete();
-      if (n < 0) return;  // 扫描未完成，下次 tick 继续轮询
+      if (n == WIFI_SCAN_RUNNING) return;  // 扫描进行中，下次 tick 继续轮询
+      if (n < 0) {
+        // 扫描失败（WIFI_SCAN_FAILED），重新调度，避免状态机永久卡在 SCAN_WAIT
+        LOG("WiFi", "AP模式后台扫描失败，%lums后重试", WIFI_AP_RESCAN_INTERVAL_MS);
+        s_reconnState    = RECONNECT_IDLE;
+        s_apRescanNextMs = millis() + WIFI_AP_RESCAN_INTERVAL_MS;
+        return;
+      }
 
       int apOrder[MAX_WIFI_ENTRIES] = {};
       int matchCount = buildSortedWifiOrder(apOrder, config.wifiCount);
+      // apOrder[] 在此路径中仅用于 matchCount>0 判断；重连顺序由 RECONNECT_WAITING 状态机
+      // 从 config.wifiList[0] 顺序遍历（与 init 扫描重排路径不同，属于已知差异）
       WiFi.scanDelete();  // 释放扫描结果内存，避免内存泄漏
 
       if (matchCount > 0) {
@@ -263,8 +273,9 @@ void wifiManagerTick() {
 
     case RECONNECT_CONNECTING:
       if (WiFi.status() == WL_CONNECTED) {
-        s_mode        = WIFI_MODE_STA_CONNECTED;
-        s_reconnState = RECONNECT_IDLE;
+        s_mode          = WIFI_MODE_STA_CONNECTED;
+        s_reconnState   = RECONNECT_IDLE;
+        s_reconnFromAP  = false;  // AP 恢复成功后清除标志，防止后续普通断线走 AP 回退路径
         WiFi.setSleep(false);  // 重连后重新关闭 Modem Sleep
         LOG("WiFi", "重连成功，SSID: %s，IP: %s", config.wifiList[s_reconnWIdx].ssid.c_str(), WiFi.localIP().toString().c_str());
         if (s_reconnectCb) s_reconnectCb();
