@@ -60,7 +60,7 @@ static const char* pushTypeLabel(PushType t) {
   }
 }
 
-static MessageContext buildMsgContext(const String& sender, const String& message, const String& timestamp, const String& triggerType) {
+static MessageContext buildMsgContext(const String& sender, const String& message, const String& timestamp, const String& messageType) {
   MessageContext ctx;
   ctx.from        = sender;
   ctx.message     = message;
@@ -72,30 +72,30 @@ static MessageContext buildMsgContext(const String& sender, const String& messag
   ctx.simSlot     = "SIM1";
   ctx.signal      = simGetSignal();
   ctx.remark      = config.remark;
-  ctx.triggerType = triggerType;
   ctx.uptime      = formatUptime(millis());
   ctx.deviceName  = getDeviceName();
+  ctx.messageType = messageType;
   return ctx;
 }
 
 // 单通道推送：含跳过判断、构建消息上下文，供重试队列调用
-bool sendPushChannel(int channelIdx, const String& sender, const String& message, const String& timestamp, MsgType msgType) {
+bool sendPushChannel(int channelIdx, const String& sender, const String& message, const String& timestamp, const MsgTypeInfo& msgType) {
   if (channelIdx < 0 || channelIdx >= config.pushCount) return false;
   const PushChannel& ch = config.pushChannels[channelIdx];
   if (!isPushChannelValid(ch)) return false;
 
   bool wifiOk = (WiFi.status() == WL_CONNECTED);
   if (ch.type >= PUSH_TYPE_POST_JSON && ch.type <= PUSH_TYPE_WECHAT_WORK && !wifiOk) return false;
-  if (ch.type == PUSH_TYPE_SMS && msgType == MSG_TYPE_SIM) return false;
+  if (ch.type == PUSH_TYPE_SMS && msgType.type == MSG_TYPE_SIM) return false;
 
-  MessageContext ctx = buildMsgContext(sender, message, timestamp, msgType == MSG_TYPE_CALL ? "来电" : msgType == MSG_TYPE_SIM ? "SIM事件" : "短信");
+  MessageContext ctx = buildMsgContext(sender, message, timestamp, msgType.toString());
   ctx.channelName = ch.name;
   ctx.channelType    = pushTypeLabel(ch.type);
   String renderedBody = ch.customBody.length() > 0 ? renderTemplate(ch.customBody, ctx) : "";
   return _sendOneChannel(ch, ctx, sender, message, timestamp, renderedBody);
 }
 
-void sendPushNotification(const String& sender, const String& message, const String& timestamp, MsgType msgType) {
+void sendPushNotification(const String& sender, const String& message, const String& timestamp, const MsgTypeInfo& msgType) {
   // T015: 推送前检查本机号码是否就绪
   // 入队整条推送链，待号码就绪后重新完整执行，确保故障转移策略正确生效
   if (!simIsNumberReady()) {
@@ -115,8 +115,7 @@ void sendPushNotification(const String& sender, const String& message, const Str
   int  failoverRetryCount = 0;
   bool failoverChainDone  = false;  // true = 已有通道成功并 break
 
-  MessageContext ctx = buildMsgContext(sender, message, timestamp,
-    msgType == MSG_TYPE_CALL ? "来电" : msgType == MSG_TYPE_SIM ? "SIM事件" : "短信");
+  MessageContext ctx = buildMsgContext(sender, message, timestamp, msgType.toString());
 
   for (int i = 0; i < config.pushCount; i++) {
     const PushChannel& ch = config.pushChannels[i];
@@ -128,8 +127,7 @@ void sendPushNotification(const String& sender, const String& message, const Str
       continue;
     }
 
-    // SMS 通道在 SIM 事件时跳过（避免循环）
-    if (ch.type == PUSH_TYPE_SMS && msgType == MSG_TYPE_SIM) {
+    if (ch.type == PUSH_TYPE_SMS && msgType.type == MSG_TYPE_SIM) {
       LOG("Push", "SIM事件跳过SMS通道: %s", ch.name.c_str());
       continue;
     }

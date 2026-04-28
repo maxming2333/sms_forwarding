@@ -219,12 +219,22 @@ public:
    */
   bool getOverflow();
   /**
+   * @brief Return the raw DCS (Data Coding Scheme) byte from the last decoded PDU.
+   * Useful to distinguish SMS classes (e.g. Class 0 = Flash/immediate-display).
+   * Bits[3:2]: alphabet (00=GSM-7, 01=8-bit, 10=UCS-2)
+   * Bit[4] (DCS_CLASS_MEANING): whether bits[1:0] carry a message class
+   * Bits[1:0]: message class (0=immediate display, 1=ME, 2=SIM, 3=TE)
+   * Returns 0 if decodePDU has not been called yet.
+   */
+  int getDCS() const;
+  /**
    * @brief Error codes from Encode
    * 
    */
   enum eEncodeError {OBSOLETE_ERROR = -1,UCS2_TOO_LONG = -2, GSM7_TOO_LONG = -3, MULTIPART_NUMBERS = -4,ADDRESS_FORMAT=-5,WORK_BUFFER_TOO_SMALL=-6,ALPHABET_8BIT_NOT_SUPPORTED = -7};
 private:
   bool overFlow;
+  int dcsValue;
   int scalength;
   char scabuffin[MAX_NUMBER_LENGTH+1]; // for incominging SCA issue 44
   char scabuffout[MAX_NUMBER_LENGTH+1]; // for outgoing SCA

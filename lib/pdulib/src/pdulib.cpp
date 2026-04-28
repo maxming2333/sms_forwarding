@@ -47,6 +47,7 @@
 PDU::PDU(int worksize ) {
   generalWorkBuffLength = worksize;
   generalWorkBuff = new char[generalWorkBuffLength+2]; // dynamically allocate buffer
+  dcsValue = 0;
 }
 PDU::~PDU() {}
 
@@ -683,6 +684,7 @@ bool PDU::decodePDU(const char *pdu)
   // pid = gethex(&pdu[index]); // TP-PID
   index += 2;                // skip over PID
   dcs = gethex(&pdu[index]); // data coding system
+  dcsValue = dcs;            // expose via getDCS()
   index += 2;
   // decode SCTS timestamp
   outindex = 0;
@@ -1197,6 +1199,10 @@ int *PDU::getConcatInfo()
 
 bool PDU::getOverflow() {
   return overFlow;
+}
+
+int PDU::getDCS() const {
+  return dcsValue;
 }
 /****************************************************************************
 This lookup table converts from ISO-8859-1 8-bit ASCII to the

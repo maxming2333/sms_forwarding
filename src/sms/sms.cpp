@@ -117,7 +117,7 @@ static int findOrCreateConcatSlot(int refNumber, const char* sender, int totalPa
 }
 
 // forward declaration
-static void processSmsContent(const char* sender, const char* text, const char* timestamp);
+static void processSmsContent(const char* sender, const char* text, const char* timestamp, const MsgTypeInfo& msgType);
 
 // ---------- multipart SMS helpers ----------
 
@@ -271,7 +271,7 @@ bool sendSMSPDU(const char* phoneNumber, const char* message) {
 }
 
 // forward declaration
-static void processSmsContent(const char* sender, const char* text, const char* timestamp);
+static void processSmsContent(const char* sender, const char* text, const char* timestamp, const MsgTypeInfo& msgType);
 
 static void processAdminCommand(const char* sender, const char* text) {
   String cmd = String(text); cmd.trim();
@@ -299,7 +299,24 @@ static void processAdminCommand(const char* sender, const char* text) {
   }
 }
 
-static void processSmsContent(const char* sender, const char* text, const char* timestamp) {
+// 将 PDU DCS 字节转换为人类可读的短信类型标签
+// 参考 GSM 03.38 §4: General data coding group (bits 7-6 = 00)
+// bit 4 (0x10): 1 = 消息类型位有意义; bits 1-0: 消息类别
+static String smsClassLabel(int dcs) {
+  // 仅处理 General data coding group (bits 7-6 = 00)
+  if ((dcs & 0xC0) != 0x00) return "普通短信";
+  // bit 4 未置位表示无类别信息
+  if (!(dcs & 0x10)) return "普通短信";
+  switch (dcs & 0x03) {
+    case 0: return "Class 0（即显短信）";
+    case 1: return "Class 1";
+    case 2: return "Class 2（SIM存储）";
+    case 3: return "Class 3";
+    default: return "普通短信";
+  }
+}
+
+static void processSmsContent(const char* sender, const char* text, const char* timestamp, const MsgTypeInfo& msgType) {
   LOG("SMS", "=== 处理短信内容 ===");
   LOG("SMS", "发送者: %s", sender);
   LOG("SMS", "时间戳: %s", timestamp);
@@ -319,7 +336,7 @@ static void processSmsContent(const char* sender, const char* text, const char* 
     }
   }
 
-  sendPushNotification(String(sender), String(text), String(timestamp), MSG_TYPE_SMS);
+  sendPushNotification(String(sender), String(text), String(timestamp), msgType);
 }
 
 static bool isHexString(const String& str) {
@@ -347,6 +364,9 @@ static void processPduLine(const String& line) {
 
   LOG("SMS", "PDU解析成功: 发送者=%s 时间=%s 内容=%s",
           pdu.getSender(), pdu.getTimeStamp(), pdu.getText());
+
+  String classLabel = smsClassLabel(pdu.getDCS());
+  LOG("SMS", "短信类型: %s (DCS=0x%02X)", classLabel.c_str(), pdu.getDCS());
 
   int* concatInfo = pdu.getConcatInfo();
   int refNumber   = concatInfo[0];
@@ -377,11 +397,12 @@ static void processPduLine(const String& line) {
       String fullText = assembleConcatSms(slot);
       processSmsContent(concatBuffer[slot].sender.c_str(),
                         fullText.c_str(),
-                        concatBuffer[slot].timestamp.c_str());
+                        concatBuffer[slot].timestamp.c_str(),
+                        makeMsgType(MSG_TYPE_SMS, classLabel));
       clearConcatSlot(slot);
     }
   } else {
-    processSmsContent(pdu.getSender(), pdu.getText(), pdu.getTimeStamp());
+    processSmsContent(pdu.getSender(), pdu.getText(), pdu.getTimeStamp(), MsgTypeInfo(MSG_TYPE_SMS, classLabel));
   }
 }
 

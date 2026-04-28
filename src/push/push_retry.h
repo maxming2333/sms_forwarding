@@ -1,6 +1,6 @@
 #pragma once
 #include <Arduino.h>
-#include "config/config.h"
+#include "push.h"
 
 // 推送重试队列上限（超出时丢弃最旧条目）
 constexpr int PUSH_RETRY_QUEUE_MAX = 50;
@@ -23,14 +23,14 @@ struct PushRetryTask {
   String        sender;
   String        message;
   String        timestamp;
-  MsgType       msgType;
+  MsgTypeInfo   msgType;
   RetryReason   reason    = RetryReason::SEND_FAILED;
   unsigned long enqueueMs = 0;
 };
 
 void pushRetryInit();
 void pushRetryEnqueue(int channelIndex, const String& sender, const String& message,
-                      const String& timestamp, MsgType msgType);
+                      const String& timestamp, const MsgTypeInfo& msgType);
 void pushRetryEnqueue(int channelIndex, const String& sender, const String& message,
-                      const String& timestamp, MsgType msgType, RetryReason reason);
+                      const String& timestamp, const MsgTypeInfo& msgType, RetryReason reason);
 void pushRetryTick();

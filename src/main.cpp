@@ -165,7 +165,7 @@ void loop() {
       "\n设备地址: " + getDeviceUrl() +
       "\nMAC: " + WiFi.macAddress() +
       "\n固件版本: " + otaGetVersion(),
-      timeModuleGetDateStr(), MSG_TYPE_SIM);
+      timeModuleGetDateStr(), MsgTypeInfo(MSG_TYPE_SIM));
   }
 
   checkConcatTimeout();

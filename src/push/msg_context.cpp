@@ -30,15 +30,19 @@ String formatUptime(unsigned long ms) {
 String renderTemplate(const String& tmpl, const MessageContext& ctx) {
   String result = tmpl;
   // 新增占位符（空值兜底为空字符串）
-  result.replace("{remark}",        ctx.remark);
-  result.replace("{trigger_type}",  ctx.triggerType);
-  result.replace("{uptime}",        ctx.uptime);
-  result.replace("{channel_name}",  ctx.channelName);
-  result.replace("{channel_type}",  ctx.channelType);
+  result.replace("{remark}",          ctx.remark);
+  // {message_type} 及向后兼容别名 {trigger_type}
+  result.replace("{message_type}",    ctx.messageType.length() > 0 ? ctx.messageType : "未知");
+  result.replace("{trigger_type}",    ctx.messageType.length() > 0 ? ctx.messageType : "未知");
+  result.replace("{uptime}",          ctx.uptime);
+  result.replace("{channel_name}",    ctx.channelName);
+  result.replace("{channel_type}",    ctx.channelType);
   // {from} 及向后兼容别名 {sender}
-  result.replace("{from}",          ctx.from.length()       > 0 ? ctx.from       : "未知");
-  result.replace("{sender}",        ctx.from.length()       > 0 ? ctx.from       : "未知");
-  result.replace("{message}",       ctx.message);
+  result.replace("{from}",            ctx.from.length()       > 0 ? ctx.from       : "未知");
+  result.replace("{sender}",          ctx.from.length()       > 0 ? ctx.from       : "未知");
+  // {message_content} 及向后兼容别名 {message}
+  result.replace("{message_content}", ctx.message);
+  result.replace("{message}",         ctx.message);
   result.replace("{timestamp}",     ctx.timestamp.length()  > 0 ? ctx.timestamp  : "0");
   result.replace("{date}",          ctx.date.length()       > 0 ? ctx.date       : "未知");
   result.replace("{device_id}",     ctx.deviceId.length()   > 0 ? ctx.deviceId   : "未知");

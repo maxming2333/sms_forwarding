@@ -23,7 +23,7 @@ static void dispatchCallNotification(const String& callerNum) {
     }
 
     String ts = timeModuleGetDateStr();
-    sendPushNotification(callerNum, "来电号码: " + callerNum + "\n时间: " + ts, ts, MSG_TYPE_CALL);
+    sendPushNotification(callerNum, "来电号码: " + callerNum + "\n时间: " + ts, ts, MsgTypeInfo(MSG_TYPE_CALL));
 
     s_lastNotifyMs = millis();
     LOG("Call", "来电通知已发送，号码: %s", callerNum.c_str());

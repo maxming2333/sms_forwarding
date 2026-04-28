@@ -281,7 +281,7 @@ void simHandleURC(const String& line) {
       s_needReinit = true;
       LOG("SIM", "检测到 SIM 就绪 URC，等待重新初始化");
       if (config.simNotifyEnabled) {
-        sendPushNotification("设备", "SIM 卡已就绪，设备将重新初始化 SIM 模块", timeModuleGetDateStr(), MSG_TYPE_SIM);
+        sendPushNotification("设备", "SIM 卡已就绪，设备将重新初始化 SIM 模块", timeModuleGetDateStr(), MsgTypeInfo(MSG_TYPE_SIM));
       }
     }
     return;
@@ -294,7 +294,7 @@ void simHandleURC(const String& line) {
     s_tsm        = TrafficSM{};
     LOG("SIM", "SIM 卡已拔出，状态已清除");
     if (config.simNotifyEnabled && prev == SIM_READY) {
-      sendPushNotification("设备", "SIM 卡已拔出，当前状态：未插入", timeModuleGetDateStr(), MSG_TYPE_SIM);
+      sendPushNotification("设备", "SIM 卡已拔出，当前状态：未插入", timeModuleGetDateStr(), MsgTypeInfo(MSG_TYPE_SIM));
     }
     return;
   }

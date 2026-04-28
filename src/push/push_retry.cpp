@@ -23,25 +23,25 @@ void pushRetryInit() {
 }
 
 void pushRetryEnqueue(int channelIndex, const String& sender, const String& message,
-                      const String& timestamp, MsgType msgType) {
+                      const String& timestamp, const MsgTypeInfo& msgType) {
   pushRetryEnqueue(channelIndex, sender, message, timestamp, msgType, RetryReason::SEND_FAILED);
 }
 
 void pushRetryEnqueue(int channelIndex, const String& sender, const String& message,
-                      const String& timestamp, MsgType msgType, RetryReason reason) {
+                      const String& timestamp, const MsgTypeInfo& msgType, RetryReason reason) {
   if (s_retryQueue.size() >= PUSH_RETRY_QUEUE_MAX) {
     LOG("Retry", "重试队列已满（%d 条），丢弃最旧条目", PUSH_RETRY_QUEUE_MAX);
     s_retryQueue.pop();
   }
   RetryEntry entry;
-  entry.task.channelIndex = channelIndex;
-  entry.task.sender       = sender;
-  entry.task.message      = message;
-  entry.task.timestamp    = timestamp;
-  entry.task.msgType      = msgType;
-  entry.task.reason       = reason;
-  entry.task.enqueueMs    = millis();
-  entry.nextRetryMs       = millis() + PUSH_RETRY_INTERVAL_MS;
+  entry.task.channelIndex  = channelIndex;
+  entry.task.sender        = sender;
+  entry.task.message       = message;
+  entry.task.timestamp     = timestamp;
+  entry.task.msgType       = msgType;
+  entry.task.reason        = reason;
+  entry.task.enqueueMs     = millis();
+  entry.nextRetryMs        = millis() + PUSH_RETRY_INTERVAL_MS;
   s_retryQueue.push(entry);
 }
 

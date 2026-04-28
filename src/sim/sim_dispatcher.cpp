@@ -181,15 +181,16 @@ bool simSendCommand(const char* cmd, unsigned long timeoutMs,
         return false;
     }
 
-    BaseType_t taken = xSemaphoreTake(slot.doneSem, pdMS_TO_TICKS(timeoutMs + 500));
+    // 必须使用 portMAX_DELAY 等待 reader task 给信号量，
+    // 不可自行超时：若 simSendCommand 提前返回，栈上的 slot 会被销毁，
+    // reader task 之后再 xSemaphoreGive(s_activeCmd->doneSem) 将访问
+    // 悬空指针，导致崩溃。reader task 内部已有 timeoutMs 超时机制，
+    // 最终一定会 Give 信号量（OK / ERROR / 超时三路均有 Give）。
+    xSemaphoreTake(slot.doneSem, portMAX_DELAY);
     vSemaphoreDelete(slot.doneSem);
 
     if (outResp != nullptr) {
         *outResp = String(slot.respBuf);
-    }
-
-    if (taken != pdTRUE) {
-        return false;
     }
     return slot.isOk;
 }
