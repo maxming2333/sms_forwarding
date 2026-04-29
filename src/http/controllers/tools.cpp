@@ -446,7 +446,15 @@ void exportCoreDumpController(AsyncWebServerRequest* request) {
     }
   );
 
-  String cdFilename = getDeviceName() + "-coredump.bin";
+  String cdFilename;
+  if (s_rtcLastKnownTime > 0) {
+    char timeBuf[20];
+    struct tm* tmInfo = gmtime(&s_rtcLastKnownTime);
+    strftime(timeBuf, sizeof(timeBuf), "%Y%m%dT%H%M%S", tmInfo);
+    cdFilename = getDeviceName() + "-coredump-" + timeBuf + ".bin";
+  } else {
+    cdFilename = getDeviceName() + "-coredump-unknown.bin";
+  }
   resp->addHeader("Content-Disposition", "attachment; filename=" + cdFilename);
   resp->addHeader("Cache-Control", "no-store");
   resp->addHeader("X-CoreDump-Size", String(usedSize));
@@ -465,4 +473,24 @@ bool coredumpHasData() {
 
 time_t coredumpGetCrashTime() {
   return s_rtcLastKnownTime;
+}
+
+void coredumpInfoController(AsyncWebServerRequest* request) {
+  const esp_partition_t* part = findCoredumpPartition();
+  if (!part) {
+    request->send(200, "application/json", "{\"hasCoredump\":false}");
+    return;
+  }
+
+  size_t usedSize = scanCoredumpUsedSize(part);
+
+  AsyncJsonResponse* resp = new AsyncJsonResponse();
+  JsonObject root = resp->getRoot();
+  root["hasCoredump"] = (usedSize > 0);
+  if (usedSize > 0) {
+    root["size"]      = (unsigned int)usedSize;
+    root["crashTime"] = (long long)s_rtcLastKnownTime;
+  }
+  resp->setLength();
+  request->send(resp);
 }
