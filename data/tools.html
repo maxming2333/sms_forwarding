@@ -1,0 +1,1508 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>工具箱</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        background: #f5f5f5;
+      }
+
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+
+      h1 {
+        color: #333;
+        text-align: center;
+      }
+
+      .form-group {
+        margin-bottom: 15px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+        color: #555;
+      }
+
+      input[type="text"],
+      textarea {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        box-sizing: border-box;
+      }
+
+      textarea {
+        resize: vertical;
+        min-height: 100px;
+      }
+
+      button {
+        width: 100%;
+        padding: 12px;
+        background: #2196f3;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 16px;
+        margin-top: 10px;
+      }
+
+      button:hover {
+        background: #1976d2;
+      }
+
+      .btn-query {
+        background: #9c27b0;
+      }
+
+      .btn-query:hover {
+        background: #7b1fa2;
+      }
+
+      .btn-ping {
+        background: #ff9800;
+      }
+
+      .btn-ping:hover {
+        background: #f57c00;
+      }
+
+      .btn-info {
+        background: #607d8b;
+      }
+
+      .btn-info:hover {
+        background: #455a64;
+      }
+
+      .btn-retry {
+        background: #2196f3;
+        margin-top: 8px;
+      }
+
+      .btn-retry:hover {
+        background: #1976d2;
+      }
+
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+
+      .section {
+        border: 1px solid #ddd;
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 5px;
+      }
+
+      .section-title {
+        font-size: 18px;
+        color: #333;
+        margin-bottom: 10px;
+      }
+
+      .status {
+        padding: 10px;
+        background: #e7f3fe;
+        border-left: 4px solid #2196f3;
+        margin-bottom: 20px;
+      }
+
+      .nav {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+
+      .nav a {
+        flex: 1;
+        text-align: center;
+        padding: 10px;
+        background: #eee;
+        border-radius: 5px;
+        text-decoration: none;
+        color: #333;
+      }
+
+      .nav a.active {
+        background: #2196f3;
+        color: white;
+      }
+
+      .char-count {
+        font-size: 12px;
+        color: #888;
+        text-align: right;
+      }
+
+      .hint {
+        font-size: 12px;
+        color: #888;
+        margin-top: 5px;
+      }
+
+      .result-box {
+        margin-top: 10px;
+        padding: 10px;
+        border-radius: 5px;
+        display: none;
+      }
+
+      .result-success {
+        background: #e8f5e9;
+        border-left: 4px solid #4caf50;
+        color: #2e7d32;
+      }
+
+      .result-error {
+        background: #ffebee;
+        border-left: 4px solid #f44336;
+        color: #c62828;
+      }
+
+      .result-loading {
+        background: #fff3e0;
+        border-left: 4px solid #ff9800;
+        color: #e65100;
+      }
+
+      .result-info {
+        background: #e3f2fd;
+        border-left: 4px solid #2196f3;
+        color: #1565c0;
+      }
+
+      .info-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 8px;
+      }
+
+      .info-table td {
+        padding: 5px 8px;
+        border-bottom: 1px solid #ddd;
+      }
+
+      .info-table td:first-child {
+        font-weight: bold;
+        width: 40%;
+        color: #555;
+      }
+
+      .btn-group {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .btn-group button {
+        flex: 1;
+        min-width: 120px;
+      }
+
+      #atLog {
+        background: #333;
+        color: #00ff00;
+        font-family: "Courier New", Courier, monospace;
+        min-height: 150px;
+        max-height: 300px;
+        overflow-y: auto;
+        padding: 10px;
+        border-radius: 5px;
+        margin-bottom: 10px;
+        font-size: 13px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .at-input-group {
+        display: flex;
+        gap: 10px;
+      }
+
+      .at-input-group input {
+        flex: 1;
+        font-family: monospace;
+      }
+
+      .at-input-group button {
+        width: auto;
+        min-width: 80px;
+        margin-top: 0;
+      }
+
+      .status-table td:first-child {
+        width: 45%;
+      }
+
+      .error-box {
+        padding: 15px;
+        background: #ffebee;
+        border-left: 4px solid #f44336;
+        color: #c62828;
+        border-radius: 3px;
+        margin-bottom: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>📱 短信转发器</h1>
+      <div class="nav">
+        <a href="/">⚙️ 系统配置</a>
+        <a href="/tools" class="active">🧰 工具箱</a>
+      </div>
+      <div class="status" id="statusBar">
+        设备IP: <strong id="devIp">加载中...</strong> &nbsp;|&nbsp; WiFi:
+        <strong id="wifiStatus">-</strong> &nbsp;|&nbsp; 配置:
+        <strong id="cfgStatus">-</strong>
+      </div>
+      <div
+        id="flashStatus"
+        style="
+          display: none;
+          padding: 10px;
+          background: #f5f5f5;
+          border-left: 4px solid #9e9e9e;
+          margin-bottom: 20px;
+          font-size: 13px;
+        "
+      >
+        Flash占用: <span id="flashUsageText">-</span>
+      </div>
+      <div
+        id="statusError"
+        class="error-box"
+        role="alert"
+        style="display: none"
+      >
+        <span id="statusErrorMsg"></span>
+        <br />
+        <button class="btn-retry" onclick="loadStatus()">🔄 重试</button>
+      </div>
+
+      <div class="section">
+        <div class="section-title">📤 发送短信</div>
+        <div class="form-group">
+          <label>目标号码</label>
+          <input type="text" id="smsPhone" placeholder="13800138000" />
+        </div>
+        <div class="form-group">
+          <label>短信内容</label>
+          <textarea
+            id="smsContent"
+            placeholder="请输入短信内容..."
+            oninput="updateCount(this)"
+          ></textarea>
+          <div class="char-count">
+            已输入 <span id="charCount">0</span> 字符
+          </div>
+        </div>
+        <button type="button" id="sendSmsBtn" onclick="sendSms()">
+          📨 发送短信
+        </button>
+        <div class="result-box" id="smsResult"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">🖥️ SOC 信息查询</div>
+        <button type="button" class="btn-info" id="socBtn" onclick="querySoc()">
+          🔍 查询 SOC 信息
+        </button>
+        <div class="result-box" id="socResult"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">📊 模组信息查询</div>
+        <div class="btn-group">
+          <button type="button" class="btn-query" onclick="queryInfo('ati')">
+            📋 固件信息
+          </button>
+          <button type="button" class="btn-query" onclick="queryInfo('signal')">
+            📶 信号质量
+          </button>
+        </div>
+        <div class="btn-group" style="margin-top: 10px">
+          <button type="button" class="btn-info" onclick="queryInfo('siminfo')">
+            💳 SIM卡信息
+          </button>
+          <button type="button" class="btn-info" onclick="queryInfo('network')">
+            🌍 网络状态
+          </button>
+        </div>
+        <div class="btn-group" style="margin-top: 10px">
+          <button
+            type="button"
+            onclick="queryInfo('wifi')"
+            style="background: #00bcd4"
+          >
+            📡 WiFi状态
+          </button>
+        </div>
+        <div class="result-box" id="queryResult"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">🌐 网络测试</div>
+        <button
+          type="button"
+          class="btn-ping"
+          id="pingBtn"
+          onclick="confirmPing()"
+        >
+          📡 点我消耗一点流量
+        </button>
+        <div class="hint">
+          将向 8.8.8.8 进行 ping 操作，一次性消耗极少流量费用
+        </div>
+        <div class="result-box" id="pingResult"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">✈️ 模组控制</div>
+        <div class="btn-group">
+          <button
+            type="button"
+            id="flightBtn"
+            onclick="toggleFlightMode()"
+            style="background: #e91e63"
+          >
+            ✈️ 切换飞行模式
+          </button>
+          <button
+            type="button"
+            onclick="queryFlightMode()"
+            style="background: #9c27b0"
+          >
+            🔍 查询状态
+          </button>
+        </div>
+        <div class="hint">
+          飞行模式关闭时模组可正常收发短信，开启后将关闭射频无法使用移动网络
+        </div>
+        <div class="result-box" id="flightResult"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">💻 AT 指令调试</div>
+        <div id="atLog">等待输入指令...</div>
+        <div class="at-input-group">
+          <input
+            type="text"
+            id="atCmd"
+            placeholder="输入 AT 指令，如: AT+CSQ"
+            onkeydown="if (event.key === 'Enter') sendAT();"
+          />
+          <button type="button" onclick="sendAT()" id="atBtn">发送</button>
+        </div>
+        <div class="btn-group" style="margin-top: 10px">
+          <button type="button" class="btn-info" onclick="clearATLog()">
+            🧹 清空日志
+          </button>
+        </div>
+        <div class="hint">直接向模组串口发送指令并接收响应，请谨慎操作</div>
+      </div>
+
+      <div class="section" id="otaSection">
+        <div class="section-title">🔄 固件升级</div>
+        <div id="otaVersionInfo" style="margin-bottom: 12px">
+          <table class="info-table">
+            <tr>
+              <td>当前版本</td>
+              <td id="otaCurVer">获取中...</td>
+            </tr>
+            <tr>
+              <td>最新版本</td>
+              <td id="otaLatestVer">检查中...</td>
+            </tr>
+          </table>
+        </div>
+        <div id="otaProgress" class="result-box" style="display: none"></div>
+        <div id="otaOnlineArea" style="margin-top: 10px">
+          <button
+            type="button"
+            id="otaOnlineBtn"
+            onclick="startOnlineUpgrade()"
+            style="background: #4caf50"
+            disabled
+          >
+            🌐 在线升级
+          </button>
+          <div
+            id="otaUpToDate"
+            class="hint"
+            style="color: #4caf50; display: none"
+          >
+            ✅ 已是最新版本，无需升级
+          </div>
+        </div>
+        <div
+          id="otaUploadArea"
+          style="
+            margin-top: 15px;
+            border-top: 1px solid #eee;
+            padding-top: 12px;
+          "
+        >
+          <label
+            style="
+              display: block;
+              margin-bottom: 5px;
+              font-weight: bold;
+              color: #555;
+            "
+            >手动上传固件（ota-*.bin）</label
+          >
+          <input
+            type="file"
+            id="otaFile"
+            accept=".bin"
+            style="margin-bottom: 8px"
+          />
+          <button
+            type="button"
+            id="otaUploadBtn"
+            onclick="startManualUpgrade()"
+            style="background: #ff9800"
+          >
+            📂 手动升级固件
+          </button>
+        </div>
+        <div
+          id="otaUploadFsArea"
+          style="
+            margin-top: 12px;
+            border-top: 1px solid #eee;
+            padding-top: 12px;
+          "
+        >
+          <label
+            style="
+              display: block;
+              margin-bottom: 5px;
+              font-weight: bold;
+              color: #555;
+            "
+            >单独更新 Web UI（littlefs-*.bin）</label
+          >
+          <input
+            type="file"
+            id="otaFsFile"
+            accept=".bin"
+            style="margin-bottom: 8px"
+          />
+          <button
+            type="button"
+            id="otaUploadFsBtn"
+            onclick="startManualLfsUpgrade()"
+            style="background: #607d8b"
+          >
+            📂 手动更新 Web UI
+          </button>
+        </div>
+        <div class="hint" style="margin-top: 8px; color: #e65100">
+          ⚠️ 升级期间请勿断电，升级成功后设备将自动重启
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">🖥️ 设备管理</div>
+        <div class="form-group">
+          <button
+            type="button"
+            id="rebootBtn"
+            onclick="rebootDevice()"
+            style="background: #ff5722"
+          >
+            🔁 重启设备
+          </button>
+          <div class="hint" style="color: #888; margin-top: 6px">
+            重启后设备将在约20秒内恢复正常工作
+          </div>
+          <div class="result-box" id="rebootResult"></div>
+        </div>
+        <div class="form-group" style="margin-top: 15px">
+          <button
+            type="button"
+            id="exportCoredumpBtn"
+            onclick="exportCoreDump()"
+            style="background: #795548"
+          >
+            📦 导出 coredump
+          </button>
+          <div class="hint" style="color: #888; margin-top: 6px">
+            设备异常重启后可导出 coredump 供远程分析，文件可能包含内存快照信息，请谨慎分享
+          </div>
+          <div id="coredumpInfoCard" style="display: none; margin-top: 8px; padding: 10px; background: #fff3e0; border-left: 4px solid #ff9800; border-radius: 4px; color: #e65100; font-size: 13px;"></div>
+          <div class="result-box" id="coredumpResult"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">🗂️ 配置管理</div>
+        <div class="form-group">
+          <button
+            type="button"
+            onclick="exportConfig()"
+            style="background: #4caf50"
+          >
+            📥 导出配置
+          </button>
+          <div class="hint" style="color: #e65100; margin-top: 6px">
+            ⚠️ 导出文件包含密码等敏感信息，请妥善保管
+          </div>
+        </div>
+        <div class="form-group" style="margin-top: 15px">
+          <button
+            type="button"
+            id="resetBtn"
+            onclick="resetConfig()"
+            style="background: #f44336"
+          >
+            🗑️ 重置配置
+          </button>
+          <div class="hint" style="color: #e65100; margin-top: 6px">
+            ⚠️ 重置将清除所有配置并自动重启，操作不可撤销
+          </div>
+        </div>
+        <div class="result-box" id="resetResult"></div>
+        <div class="form-group" style="margin-top: 15px">
+          <label>导入配置（选择 .json 文件）</label>
+          <input
+            type="file"
+            id="importFile"
+            accept=".json"
+            style="margin-bottom: 8px"
+          />
+          <button
+            type="button"
+            id="importBtn"
+            onclick="importConfig()"
+            style="background: #ff9800"
+          >
+            📤 导入配置
+          </button>
+        </div>
+        <div class="result-box" id="importResult"></div>
+      </div>
+    </div>
+
+    <script>
+      function exportConfig() {
+        window.location.href = "/api/config/export";
+      }
+
+      function fmt(b) {
+        if (b >= 1048576) return (b / 1048576).toFixed(2) + " MB";
+        return (b / 1024).toFixed(1) + " KB";
+      }
+
+      function resetConfig() {
+        var result = document.getElementById("resetResult");
+        var btn = document.getElementById("resetBtn");
+
+        if (
+          !confirm(
+            "⚠️ 确认重置？\n\n此操作将清除所有配置并自动重启设备，无法撤销！",
+          )
+        )
+          return;
+
+        result.className = "result-box result-loading";
+        result.style.display = "block";
+        result.textContent = "正在获取重置凭证...";
+        btn.disabled = true;
+
+        fetch("/api/tools/reset-token")
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (d) {
+            result.textContent = "正在重置配置...";
+            return fetch("/api/tools/reset", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ token: d.token }),
+            });
+          })
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (d) {
+            if (d.ok) {
+              result.className = "result-box result-success";
+              var count = 2;
+              result.textContent = "✅ " + d.message + "（" + count + "秒）";
+              var timer = setInterval(function () {
+                count--;
+                if (count <= 0) {
+                  clearInterval(timer);
+                  result.textContent = "🔄 设备正在重启，请稍候...";
+                } else {
+                  result.textContent =
+                    "✅ " + d.message + "（" + count + "秒）";
+                }
+              }, 1000);
+            } else {
+              result.className = "result-box result-error";
+              result.textContent = "❌ " + (d.error || "重置失败");
+              btn.disabled = false;
+            }
+          })
+          .catch(function (e) {
+            result.className = "result-box result-error";
+            result.textContent = "❌ 请求失败: " + e.message;
+            btn.disabled = false;
+          });
+      }
+
+      function rebootDevice() {
+        var result = document.getElementById("rebootResult");
+        var btn = document.getElementById("rebootBtn");
+
+        if (!confirm("确定要重启设备吗？\n\n设备将在2秒后重启，期间无法收发短信。")) return;
+
+        result.className = "result-box result-loading";
+        result.style.display = "block";
+        result.textContent = "正在获取凭证...";
+        btn.disabled = true;
+
+        fetch("/api/tools/reset-token")
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            result.textContent = "正在重启设备...";
+            return fetch("/api/tools/reboot", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ token: d.token }),
+            });
+          })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (d.ok) {
+              result.className = "result-box result-success";
+              var count = 2;
+              result.textContent = "✅ " + d.message + "（" + count + "秒）";
+              var timer = setInterval(function () {
+                count--;
+                if (count <= 0) {
+                  clearInterval(timer);
+                  result.textContent = "🔄 设备正在重启，请稍候...";
+                } else {
+                  result.textContent = "✅ " + d.message + "（" + count + "秒）";
+                }
+              }, 1000);
+            } else {
+              result.className = "result-box result-error";
+              result.textContent = "❌ " + (d.error || "重启失败");
+              btn.disabled = false;
+            }
+          })
+          .catch(function (e) {
+            result.className = "result-box result-error";
+            result.textContent = "❌ 请求失败: " + e.message;
+            btn.disabled = false;
+          });
+      }
+
+      function loadCoredumpInfo() {
+        fetch("/api/tools/coredump/info")
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (!d.hasCoredump) return;
+            var card = document.getElementById("coredumpInfoCard");
+            var timeStr = "时间未知";
+            if (d.crashTime && d.crashTime > 0) {
+              timeStr = new Date(d.crashTime * 1000).toLocaleString("zh-CN");
+            }
+            var sizeStr = d.size ? (" / 文件大小: " + (d.size >= 1048576
+              ? (d.size / 1048576).toFixed(2) + " MB"
+              : (d.size / 1024).toFixed(1) + " KB")) : "";
+            card.innerHTML = "⚠️ <strong>检测到崩溃记录</strong><br>崩溃时间：" + timeStr + "（近似）" + sizeStr;
+            card.style.display = "block";
+          })
+          .catch(function () {});
+      }
+
+      function exportCoreDump() {
+        var btn = document.getElementById("exportCoredumpBtn");
+        var result = document.getElementById("coredumpResult");
+
+        btn.disabled = true;
+        result.className = "result-box result-loading";
+        result.style.display = "block";
+        result.textContent = "正在导出 coredump，请稍候...";
+
+        fetch("/api/tools/coredump/export")
+          .then(function (resp) {
+            if (!resp.ok) {
+              return resp.text().then(function (txt) {
+                var msg = txt || ("HTTP " + resp.status);
+                try {
+                  var obj = JSON.parse(txt);
+                  msg = obj.error || obj.message || msg;
+                } catch (e) {}
+                throw new Error(msg);
+              });
+            }
+
+            var cd = resp.headers.get("Content-Disposition") || "";
+            var fileName = "esp32-coredump.bin";
+            var m = cd.match(/filename\*=UTF-8''([^;]+)|filename=\"?([^\";]+)\"?/i);
+            if (m) fileName = decodeURIComponent(m[1] || m[2]);
+
+            return resp.blob().then(function (blob) {
+              return { blob: blob, fileName: fileName };
+            });
+          })
+          .then(function (d) {
+            var url = URL.createObjectURL(d.blob);
+            var a = document.createElement("a");
+            a.href = url;
+            a.download = d.fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            btn.disabled = false;
+            result.className = "result-box result-success";
+            result.textContent =
+              "✅ coredump 导出成功，文件大小 " + fmt(d.blob.size);
+          })
+          .catch(function (e) {
+            btn.disabled = false;
+            result.className = "result-box result-error";
+            result.textContent = "❌ 导出失败: " + e.message;
+          });
+      }
+
+      function importConfig() {
+        var fileInput = document.getElementById("importFile");
+        var result = document.getElementById("importResult");
+        var btn = document.getElementById("importBtn");
+
+        if (!fileInput.files || fileInput.files.length === 0) {
+          result.className = "result-box result-error";
+          result.style.display = "block";
+          result.textContent = "❌ 请先选择 JSON 文件";
+          return;
+        }
+
+        var file = fileInput.files[0];
+        var reader = new FileReader();
+        reader.onload = function (e) {
+          btn.disabled = true;
+          result.className = "result-box result-loading";
+          result.style.display = "block";
+          result.textContent = "正在导入，请稍候...";
+
+          fetch("/api/config/import", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: e.target.result,
+          })
+            .then(function (resp) {
+              return resp.json();
+            })
+            .then(function (data) {
+              btn.disabled = false;
+              if (data.ok) {
+                result.className = "result-box result-success";
+                result.textContent = "✅ " + data.message;
+              } else {
+                result.className = "result-box result-error";
+                result.textContent = "❌ " + (data.error || "导入失败");
+              }
+            })
+            .catch(function (e) {
+              btn.disabled = false;
+              result.className = "result-box result-error";
+              result.textContent = "❌ 请求失败: " + e.message;
+            });
+        };
+        reader.readAsText(file);
+      }
+
+      function updateCount(el) {
+        document.getElementById("charCount").textContent = el.value.length;
+      }
+
+      function querySoc() {
+        var btn = document.getElementById("socBtn");
+        var result = document.getElementById("socResult");
+        btn.disabled = true;
+        result.className = "result-box result-loading";
+        result.style.display = "block";
+        result.textContent = "正在查询...";
+
+        fetch("/api/soc")
+          .then(function (r) {
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r.json();
+          })
+          .then(function (d) {
+            btn.disabled = false;
+            result.className = "result-box result-info";
+            result.innerHTML =
+              '<table class="info-table">' +
+              "<tr><td>空闲堆内存</td><td>" +
+              fmt(d.freeHeap) +
+              "</td></tr>" +
+              "<tr><td>最小剩余堆</td><td>" +
+              fmt(d.minFreeHeap) +
+              "</td></tr>" +
+              "<tr><td>Flash 总量</td><td>" +
+              fmt(d.flashTotal) +
+              "</td></tr>" +
+              "<tr><td>Flash 已用</td><td>" +
+              fmt(d.flashUsed) +
+              "</td></tr>" +
+              "<tr><td>LittleFS 总量</td><td>" +
+              fmt(d.fsTotal) +
+              "</td></tr>" +
+              "<tr><td>LittleFS 已用</td><td>" +
+              fmt(d.fsUsed) +
+              "</td></tr>" +
+              "<tr><td>CPU 频率</td><td>" +
+              d.cpuFreqMHz +
+              " MHz</td></tr>" +
+              "<tr><td>芯片 ID</td><td>" +
+              d.chipId +
+              "</td></tr>" +
+              "<tr><td>运行时长</td><td>" +
+              d.uptimeSeconds +
+              " 秒</td></tr>" +
+              "</table>";
+          })
+          .catch(function (e) {
+            btn.disabled = false;
+            result.className = "result-box result-error";
+            result.textContent = "❌ 查询失败: " + e.message;
+          });
+      }
+
+      function loadStatus() {
+        document.getElementById("statusError").style.display = "none";
+        fetch("/api/status")
+          .then(function (resp) {
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            return resp.json();
+          })
+          .then(function (data) {
+            document.getElementById("devIp").textContent = data.ip || "-";
+            document.getElementById("wifiStatus").textContent =
+              data.wifiConnected ? "已连接" : "未连接";
+            document.getElementById("cfgStatus").textContent = data.configValid
+              ? "有效"
+              : "未配置";
+          })
+          .catch(function (e) {
+            document.getElementById("statusErrorMsg").textContent =
+              "无法获取设备状态（" + e.message + "）";
+            document.getElementById("statusError").style.display = "block";
+          });
+      }
+
+      function loadSoc() {
+        fetch("/api/soc")
+          .then(function (resp) {
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            return resp.json();
+          })
+          .then(function (data) {
+            if (data.flashTotal === undefined) return;
+            var total = data.flashTotal,
+              used = data.flashUsed,
+              free = data.flashFree;
+            var threshold = Math.min(total * 0.1, 50 * 1024);
+            var isWarn = free < threshold;
+            var el = document.getElementById("flashStatus");
+            document.getElementById("flashUsageText").textContent =
+              fmt(used) + " / " + fmt(total) + "，剩余 " + fmt(free);
+            el.style.display = "block";
+            el.style.borderLeftColor = isWarn ? "#ffc107" : "#9e9e9e";
+            el.style.background = isWarn ? "#fff3cd" : "#f5f5f5";
+          })
+          .catch(function () {});
+      }
+
+      function sendSms() {
+        var phone = document.getElementById("smsPhone").value.trim();
+        var content = document.getElementById("smsContent").value.trim();
+        var result = document.getElementById("smsResult");
+        var btn = document.getElementById("sendSmsBtn");
+
+        if (!phone || !content) {
+          result.className = "result-box result-error";
+          result.style.display = "block";
+          result.textContent = "❌ 请填写手机号和短信内容";
+          return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = "⏳ 发送中...";
+        result.className = "result-box result-loading";
+        result.style.display = "block";
+        result.textContent = "正在发送...";
+
+        var form = new FormData();
+        form.append("phone", phone);
+        form.append("content", content);
+
+        fetch("/sendsms", { method: "POST", body: form })
+          .then(function (resp) {
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            return resp.json();
+          })
+          .then(function (data) {
+            btn.disabled = false;
+            btn.textContent = "📨 发送短信";
+            if (data.success) {
+              result.className = "result-box result-success";
+              result.innerHTML = "✅ 发送成功！<br>" + (data.message || "");
+            } else {
+              result.className = "result-box result-error";
+              result.innerHTML = "❌ 发送失败<br>" + (data.message || "");
+            }
+          })
+          .catch(function (e) {
+            btn.disabled = false;
+            btn.textContent = "📨 发送短信";
+            result.className = "result-box result-error";
+            result.textContent = "❌ 请求失败: " + e.message;
+          });
+      }
+
+      function queryInfo(type) {
+        var result = document.getElementById("queryResult");
+        result.className = "result-box result-loading";
+        result.style.display = "block";
+        result.textContent = "正在查询，请稍候...";
+
+        fetch("/query?type=" + encodeURIComponent(type))
+          .then(function (resp) {
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            return resp.json();
+          })
+          .then(function (data) {
+            if (data.success) {
+              result.className = "result-box result-info";
+              result.innerHTML = data.message;
+            } else {
+              result.className = "result-box result-error";
+              result.innerHTML = "❌ 查询失败<br>" + data.message;
+            }
+          })
+          .catch(function (e) {
+            result.className = "result-box result-error";
+            result.textContent = "❌ 请求失败: " + e.message;
+          });
+      }
+
+      function confirmPing() {
+        if (confirm("确定要执行 Ping 操作吗？\n\n这将消耗少量流量。")) doPing();
+      }
+
+      function doPing() {
+        var btn = document.getElementById("pingBtn");
+        var result = document.getElementById("pingResult");
+        btn.disabled = true;
+        btn.textContent = "⏳ 正在 Ping...";
+        result.className = "result-box result-loading";
+        result.style.display = "block";
+        result.textContent = "正在执行 Ping 操作，请稍候（最长等待30秒）...";
+
+        fetch("/ping", { method: "POST" })
+          .then(function (resp) {
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            return resp.json();
+          })
+          .then(function (data) {
+            btn.disabled = false;
+            btn.textContent = "📡 点我消耗一点流量";
+            if (data.success) {
+              result.className = "result-box result-success";
+              result.innerHTML = "✅ Ping 成功！<br>" + data.message;
+            } else {
+              result.className = "result-box result-error";
+              result.innerHTML = "❌ Ping 失败<br>" + data.message;
+            }
+          })
+          .catch(function (e) {
+            btn.disabled = false;
+            btn.textContent = "📡 点我消耗一点流量";
+            result.className = "result-box result-error";
+            result.textContent = "❌ 请求失败: " + e.message;
+          });
+      }
+
+      function queryFlightMode() {
+        var result = document.getElementById("flightResult");
+        result.className = "result-box result-loading";
+        result.style.display = "block";
+        result.textContent = "正在查询飞行模式状态...";
+
+        fetch("/flight?action=query")
+          .then(function (resp) {
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            return resp.json();
+          })
+          .then(function (data) {
+            if (data.success) {
+              result.className = "result-box result-info";
+              result.innerHTML = data.message;
+            } else {
+              result.className = "result-box result-error";
+              result.innerHTML = "❌ 查询失败: " + data.message;
+            }
+          })
+          .catch(function (e) {
+            result.className = "result-box result-error";
+            result.textContent = "❌ 请求失败: " + e.message;
+          });
+      }
+
+      function toggleFlightMode() {
+        if (
+          !confirm(
+            "确定要切换飞行模式吗？\n\n开启飞行模式后模组将无法收发短信。",
+          )
+        )
+          return;
+        var btn = document.getElementById("flightBtn");
+        var result = document.getElementById("flightResult");
+        btn.disabled = true;
+        result.className = "result-box result-loading";
+        result.style.display = "block";
+        result.textContent = "正在切换飞行模式...";
+
+        fetch("/flight?action=toggle")
+          .then(function (resp) {
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            return resp.json();
+          })
+          .then(function (data) {
+            btn.disabled = false;
+            if (data.success) {
+              result.className = "result-box result-success";
+              result.innerHTML = "✅ " + data.message;
+            } else {
+              result.className = "result-box result-error";
+              result.innerHTML = "❌ 切换失败: " + data.message;
+            }
+          })
+          .catch(function (e) {
+            btn.disabled = false;
+            result.className = "result-box result-error";
+            result.textContent = "❌ 请求失败: " + e.message;
+          });
+      }
+
+      function addLog(msg, type) {
+        var log = document.getElementById("atLog");
+        var div = document.createElement("div");
+        var prefix = document.createElement("b");
+        if (type === "user") {
+          prefix.style.color = "#fff";
+          prefix.textContent = "> ";
+        } else if (type === "error") {
+          prefix.style.color = "#f44336";
+          prefix.textContent = "❌ ";
+        } else {
+          prefix.style.color = "#4CAF50";
+          prefix.textContent = "[RESP] ";
+        }
+        div.appendChild(prefix);
+        div.appendChild(document.createTextNode(msg));
+        log.appendChild(div);
+        log.scrollTop = log.scrollHeight;
+      }
+
+      function clearATLog() {
+        document.getElementById("atLog").innerHTML = "";
+      }
+
+      function sendAT() {
+        var input = document.getElementById("atCmd");
+        var cmd = input.value.trim();
+        if (!cmd) return;
+
+        var btn = document.getElementById("atBtn");
+        btn.disabled = true;
+        btn.textContent = "...";
+        addLog(cmd, "user");
+        input.value = "";
+
+        fetch("/at?cmd=" + encodeURIComponent(cmd))
+          .then(function (resp) {
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            return resp.json();
+          })
+          .then(function (data) {
+            btn.disabled = false;
+            btn.textContent = "发送";
+            var lines = (data.message || "").split("\n");
+            var type = data.success ? "resp" : "error";
+            for (var l = 0; l < lines.length; l++) {
+              if (lines[l].trim()) addLog(lines[l], type);
+            }
+            if (!data.success && !data.message) {
+              addLog("执行失败", "error");
+            }
+          })
+          .catch(function (e) {
+            btn.disabled = false;
+            btn.textContent = "发送";
+            addLog("请求失败: " + e.message, "error");
+          });
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        loadStatus();
+        loadSoc();
+        loadCoredumpInfo();
+        startOtaVersionCheck();
+      });
+
+      // ── OTA ──────────────────────────────────────────────────────
+      var otaPollingTimer = null;
+      var otaInUpgrade = false;
+      var otaCurrentVersion = "";
+      var otaLatestVersion = "";
+
+      function otaStateLabel(state) {
+        var map = {
+          idle: "空闲",
+          checking: "正在检查版本...",
+          downloading: "下载固件中...",
+          writing: "写入固件中...",
+          flashing_fs: "写入 Web UI 中...",
+          success: "升级成功，重启中...",
+          failed: "升级失败",
+        };
+        return map[state] || state;
+      }
+
+      function renderOtaStatus(d) {
+        var progress = document.getElementById("otaProgress");
+        var curVerEl = document.getElementById("otaCurVer");
+        var latestEl = document.getElementById("otaLatestVer");
+        var onlineBtn = document.getElementById("otaOnlineBtn");
+        var upToDate = document.getElementById("otaUpToDate");
+
+        if (d.currentVersion) {
+          curVerEl.textContent = d.currentVersion;
+          otaCurrentVersion = d.currentVersion;
+        }
+        if (d.latestVersion) {
+          latestEl.textContent = d.latestVersion;
+          otaLatestVersion = d.latestVersion;
+        } else if (d.state === "checking") latestEl.textContent = "检查中...";
+
+        var stateLabel = otaStateLabel(d.state);
+        if (d.state !== "idle") {
+          progress.style.display = "block";
+          if (d.state === "failed") {
+            progress.className = "result-box result-error";
+            progress.textContent = "❌ " + (d.message || "升级失败");
+          } else if (d.state === "success") {
+            progress.className = "result-box result-success";
+            progress.textContent =
+              "✅ " + (d.message || "升级成功，设备即将重启");
+          } else {
+            progress.className = "result-box result-loading";
+            progress.textContent =
+              stateLabel + (d.progress > 0 ? "（" + d.progress + "%）" : "");
+          }
+        } else {
+          if (!otaInUpgrade) progress.style.display = "none";
+        }
+
+        // 版本比较（仅 idle/failed 且有 latestVersion 时显示按钮）
+        if (d.latestVersion && d.currentVersion) {
+          if (d.latestVersion !== d.currentVersion) {
+            latestEl.textContent = d.latestVersion + " 🆕";
+            onlineBtn.disabled = false;
+            upToDate.style.display = "none";
+          } else {
+            onlineBtn.disabled = true;
+            upToDate.style.display = "block";
+          }
+        }
+      }
+
+      function pollOtaStatus() {
+        fetch("/api/ota/status")
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (d) {
+            // 先清标志、停轮询，再渲染；这样 renderOtaStatus 看到的 otaInUpgrade 已是最终值
+            if (
+              d.state === "success" ||
+              d.state === "failed" ||
+              d.state === "idle"
+            ) {
+              stopOtaPolling();
+              otaInUpgrade = false;
+            }
+            renderOtaStatus(d);
+          })
+          .catch(function () {
+            // 设备可能正在 OTA 重启，给用户提示而非静默失败
+            if (otaInUpgrade) {
+              var p = document.getElementById("otaProgress");
+              if (p) {
+                p.className = "result-box result-loading";
+                p.style.display = "block";
+                p.textContent = "设备升级重启中，请稍候...";
+              }
+            }
+          });
+      }
+
+      function startOtaPolling() {
+        if (otaPollingTimer) return;
+        otaPollingTimer = setInterval(pollOtaStatus, 1000);
+      }
+
+      function stopOtaPolling() {
+        if (otaPollingTimer) {
+          clearInterval(otaPollingTimer);
+          otaPollingTimer = null;
+        }
+      }
+
+      function startOtaVersionCheck() {
+        fetch("/api/ota/version")
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (d) {
+            renderOtaStatus(d);
+            // 只要版本号还没拿到就启动轮询（后端任务异步启动，首次响应可能仍是 idle+空版本）
+            if (!d.latestVersion) {
+              startOtaPolling();
+            }
+          })
+          .catch(function (e) {
+            document.getElementById("otaCurVer").textContent = "获取失败";
+            document.getElementById("otaLatestVer").textContent = "检查失败";
+          });
+
+        // 页面加载/刷新时检测是否有正在进行的升级，有则自动恢复轮询
+        fetch("/api/ota/status")
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            var active = ["checking", "downloading", "writing", "flashing_fs"];
+            if (active.indexOf(d.state) !== -1) {
+              otaInUpgrade = true;
+              renderOtaStatus(d);
+              startOtaPolling();
+            }
+          })
+          .catch(function () {});
+      }
+
+      function startOnlineUpgrade() {
+        if (!otaLatestVersion || otaLatestVersion === otaCurrentVersion) {
+          var p = document.getElementById("otaProgress");
+          p.className = "result-box result-error";
+          p.style.display = "block";
+          p.textContent =
+            "❌ " +
+            (!otaLatestVersion
+              ? "尚未获取最新版本，请稍候重试"
+              : "当前已是最新版本，无需升级");
+          return;
+        }
+        if (
+          !confirm(
+            "确定要开始在线升级吗？\n\n目标版本: " +
+              otaLatestVersion +
+              "\n升级过程中请勿断电，设备升级成功后将自动重启。",
+          )
+        )
+          return;
+        var btn = document.getElementById("otaOnlineBtn");
+        btn.disabled = true;
+        otaInUpgrade = true;
+
+        fetch("/api/ota/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tag: otaLatestVersion }),
+        })
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (d) {
+            if (d.success) {
+              startOtaPolling();
+            } else {
+              btn.disabled = false;
+              otaInUpgrade = false;
+              var p = document.getElementById("otaProgress");
+              p.className = "result-box result-error";
+              p.style.display = "block";
+              p.textContent = "❌ " + (d.message || "启动升级失败");
+            }
+          })
+          .catch(function (e) {
+            btn.disabled = false;
+            otaInUpgrade = false;
+            var p = document.getElementById("otaProgress");
+            p.className = "result-box result-error";
+            p.style.display = "block";
+            p.textContent = "❌ 请求失败: " + e.message;
+          });
+      }
+
+      function startManualUpgrade() {
+        var fileInput = document.getElementById("otaFile");
+        var btn = document.getElementById("otaUploadBtn");
+        var progress = document.getElementById("otaProgress");
+
+        if (!fileInput.files || fileInput.files.length === 0) {
+          progress.className = "result-box result-error";
+          progress.style.display = "block";
+          progress.textContent = "❌ 请先选择 .bin 固件文件";
+          return;
+        }
+
+        var file = fileInput.files[0];
+        if (file.size > 1.5 * 1024 * 1024) {
+          progress.className = "result-box result-error";
+          progress.style.display = "block";
+          progress.textContent =
+            "❌ 文件过大（单个 OTA 分区最大约 1.25MB），请确认选择了正确的固件文件";
+          return;
+        }
+
+        if (
+          !confirm(
+            "确定要上传并安装此固件吗？\n\n文件：" +
+              file.name +
+              "\n大小：" +
+              (file.size / 1024).toFixed(1) +
+              " KB\n\n升级成功后设备将自动重启。",
+          )
+        )
+          return;
+
+        btn.disabled = true;
+        otaInUpgrade = true;
+        progress.className = "result-box result-loading";
+        progress.style.display = "block";
+        progress.textContent = "正在上传固件，请稍候...";
+
+        var form = new FormData();
+        form.append("firmware", file);
+
+        fetch("/api/ota/upload", { method: "POST", body: form })
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (d) {
+            btn.disabled = false;
+            otaInUpgrade = false;
+            if (d.success) {
+              progress.className = "result-box result-success";
+              progress.textContent =
+                "✅ " + (d.message || "上传成功，设备即将重启");
+            } else {
+              progress.className = "result-box result-error";
+              progress.textContent = "❌ " + (d.message || "上传失败");
+            }
+          })
+          .catch(function (e) {
+            btn.disabled = false;
+            otaInUpgrade = false;
+            progress.className = "result-box result-error";
+            progress.textContent = "❌ 上传失败: " + e.message;
+          });
+
+        startOtaPolling();
+      }
+
+      function startManualLfsUpgrade() {
+        var fileInput = document.getElementById("otaFsFile");
+        var btn = document.getElementById("otaUploadFsBtn");
+        var progress = document.getElementById("otaProgress");
+
+        if (!fileInput.files || fileInput.files.length === 0) {
+          progress.className = "result-box result-error";
+          progress.style.display = "block";
+          progress.textContent = "❌ 请先选择 LittleFS .bin 文件";
+          return;
+        }
+
+        var file = fileInput.files[0];
+        if (
+          !confirm(
+            "确定要上传并更新 Web UI 吗？\n\n文件：" +
+              file.name +
+              "\n大小：" +
+              (file.size / 1024).toFixed(1) +
+              " KB\n\n更新成功后设备将自动重启。",
+          )
+        )
+          return;
+
+        btn.disabled = true;
+        document.getElementById("otaUploadBtn").disabled = true;
+        otaInUpgrade = true;
+        progress.className = "result-box result-loading";
+        progress.style.display = "block";
+        progress.textContent = "正在上传 Web UI，请稍候...";
+
+        var form = new FormData();
+        form.append("filesystem", file);
+
+        fetch("/api/ota/upload-fs", { method: "POST", body: form })
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (d) {
+            btn.disabled = false;
+            document.getElementById("otaUploadBtn").disabled = false;
+            otaInUpgrade = false;
+            if (d.success) {
+              progress.className = "result-box result-success";
+              progress.textContent =
+                "✅ " + (d.message || "上传成功，设备即将重启");
+            } else {
+              progress.className = "result-box result-error";
+              progress.textContent = "❌ " + (d.message || "上传失败");
+            }
+          })
+          .catch(function (e) {
+            btn.disabled = false;
+            document.getElementById("otaUploadBtn").disabled = false;
+            otaInUpgrade = false;
+            progress.className = "result-box result-error";
+            progress.textContent = "❌ 上传失败: " + e.message;
+          });
+
+        startOtaPolling();
+      }
+    </script>
+  </body>
+</html>
