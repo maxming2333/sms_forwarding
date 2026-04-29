@@ -469,10 +469,15 @@ void exportCoreDumpController(AsyncWebServerRequest* request) {
 
 void coredumpUpdateLastKnownTime(time_t t) {
   s_rtcLastKnownTime = t;
-  Preferences prefs;
-  if (prefs.begin("sms_config", false)) {
-    prefs.putLong("cdLastTs", (long)t);
-    prefs.end();
+  // NVS 写入限流：仅当时间变化超过 60 秒才刷新，减少 flash 写入
+  static time_t s_lastNvsWrite = 0;
+  if (t - s_lastNvsWrite >= 60) {
+    Preferences prefs;
+    if (prefs.begin("sms_config", false)) {
+      prefs.putLong("cdLastTs", (long)t);
+      prefs.end();
+    }
+    s_lastNvsWrite = t;
   }
 }
 
