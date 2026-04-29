@@ -449,8 +449,9 @@ void exportCoreDumpController(AsyncWebServerRequest* request) {
   String cdFilename;
   if (s_rtcLastKnownTime > 0) {
     char timeBuf[20];
-    struct tm* tmInfo = gmtime(&s_rtcLastKnownTime);
-    strftime(timeBuf, sizeof(timeBuf), "%Y%m%dT%H%M%S", tmInfo);
+    struct tm tmInfo;
+    gmtime_r(&s_rtcLastKnownTime, &tmInfo);
+    strftime(timeBuf, sizeof(timeBuf), "%Y%m%dT%H%M%S", &tmInfo);
     cdFilename = getDeviceName() + "-coredump-" + timeBuf + ".bin";
   } else {
     cdFilename = getDeviceName() + "-coredump-unknown.bin";
