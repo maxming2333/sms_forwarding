@@ -95,6 +95,18 @@ void loadConfig() {
 }
 
 void saveConfig() {
+  if (config.webUser.length() == 0) config.webUser = DEFAULT_WEB_USER;
+  if (config.webPass.length() == 0) config.webPass = DEFAULT_WEB_PASS;
+  if (config.pushCount < 1) config.pushCount = 1;
+  if (config.pushCount > MAX_PUSH_CHANNELS) config.pushCount = MAX_PUSH_CHANNELS;
+  if (config.wifiCount < 0) config.wifiCount = 0;
+  if (config.wifiCount > MAX_WIFI_ENTRIES) config.wifiCount = MAX_WIFI_ENTRIES;
+  if (config.blacklistCount < 0) config.blacklistCount = 0;
+  if (config.blacklistCount > MAX_BLACKLIST_ENTRIES) config.blacklistCount = MAX_BLACKLIST_ENTRIES;
+  if (config.pushStrategy != PUSH_STRATEGY_BROADCAST && config.pushStrategy != PUSH_STRATEGY_FAILOVER) {
+    config.pushStrategy = PUSH_STRATEGY_BROADCAST;
+  }
+
   preferences.begin(kNvsSmsConfig, false);
   preferences.putString("adminPhone", trimStr(config.adminPhone));
   preferences.putString("webUser",    trimStr(config.webUser));
@@ -148,12 +160,19 @@ void loadRebootSchedule(RebootSchedule& sched) {
 }
 
 void saveRebootSchedule(const RebootSchedule& sched) {
+  RebootSchedule normalized = sched;
+  if (normalized.mode > 1) normalized.mode = 0;
+  if (normalized.hour > 23) normalized.hour = 23;
+  if (normalized.minute > 59) normalized.minute = 59;
+  if (normalized.intervalH < 1) normalized.intervalH = 1;
+  if (normalized.intervalH > 168) normalized.intervalH = 168;
+
   preferences.begin(kNvsRebootCfg, false);
-  preferences.putBool("rb_enabled",    sched.enabled);
-  preferences.putUChar("rb_mode",      sched.mode);
-  preferences.putUChar("rb_hour",      sched.hour);
-  preferences.putUChar("rb_minute",    sched.minute);
-  preferences.putUShort("rb_interval", sched.intervalH);
+  preferences.putBool("rb_enabled",    normalized.enabled);
+  preferences.putUChar("rb_mode",      normalized.mode);
+  preferences.putUChar("rb_hour",      normalized.hour);
+  preferences.putUChar("rb_minute",    normalized.minute);
+  preferences.putUShort("rb_interval", normalized.intervalH);
   preferences.end();
 }
 

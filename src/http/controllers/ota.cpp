@@ -1,5 +1,6 @@
 #include "ota.h"
 #include "ota/ota_manager.h"
+#include "http/body_accumulator.h"
 #include "logger.h"
 #include <AsyncJson.h>
 #include <ArduinoJson.h>
@@ -60,10 +61,13 @@ void otaVersionController(AsyncWebServerRequest* request) {
 
 // ── POST /api/ota/start ───────────────────────────────────────────
 void otaStartController(AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
-    if (index + len < total) return;
+    const char* body = nullptr;
+    if (!httpAccumulateBody(request, data, len, index, total, HTTP_JSON_BODY_MAX_BYTES, &body)) return;
+    if (body == nullptr) return;
 
     JsonDocument doc;
-    DeserializationError err = deserializeJson(doc, data, len);
+    DeserializationError err = deserializeJson(doc, body);
+    httpReleaseAccumulatedBody(request);
     String targetTag = err ? String() : (doc["tag"] | String());
     targetTag.trim();
 

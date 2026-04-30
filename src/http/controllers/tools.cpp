@@ -1,5 +1,6 @@
 #include "tools.h"
 #include "config/config.h"
+#include "http/body_accumulator.h"
 #include "logger.h"
 #include "coredump/coredump.h"
 #include "sms/sms.h"
@@ -56,6 +57,11 @@ void pingController(AsyncWebServerRequest* request) {
   delay(500);
 
   // AT+MPING 为异步多行响应，通过 Serial1 直接收取（reader task 此时已阻塞在调用方等待）
+  if (!simPauseReader()) {
+    sendATCommand("AT+CGACT=0,1", 5000);
+    sendJsonResponse(request, false, "SIM 串口忙，请稍后重试");
+    return;
+  }
   while (Serial1.available()) Serial1.read();
   Serial1.println("AT+MPING=\"8.8.8.8\",30,1");
 
@@ -67,6 +73,7 @@ void pingController(AsyncWebServerRequest* request) {
   while (millis() - start < 35000) {
     while (Serial1.available()) {
       char c = Serial1.read(); resp += c;
+      if (resp.length() > 2048) resp.remove(0, resp.length() - 2048);
       if (resp.indexOf("+CME ERROR") >= 0 || resp.indexOf("ERROR") >= 0) {
         gotError = true; pingResultMsg = "模组返回错误"; break;
       }
@@ -117,6 +124,8 @@ void pingController(AsyncWebServerRequest* request) {
     if (gotError || gotPingResult) break;
     delay(10);
   }
+
+  simResumeReader();
 
   sendATCommand("AT+CGACT=0,1", 5000);
 
@@ -329,15 +338,20 @@ void resetTokenController(AsyncWebServerRequest* request) {
 // ── 重置配置端点 ────────────────────────────────────────────
 void resetConfigController(AsyncWebServerRequest* request, uint8_t* data,
                            size_t len, size_t index, size_t total) {
-  if (index + len < total) return;
+  const char* body = nullptr;
+  if (!httpAccumulateBody(request, data, len, index, total, HTTP_JSON_BODY_MAX_BYTES, &body)) return;
+  if (body == nullptr) return;
 
   JsonDocument doc;
-  if (deserializeJson(doc, data, len) != DeserializationError::Ok
-      || !doc.is<JsonObject>()) {
+  bool parseFailed = deserializeJson(doc, body) != DeserializationError::Ok
+      || !doc.is<JsonObject>();
+  if (parseFailed) {
+    httpReleaseAccumulatedBody(request);
     request->send(400, "application/json",
       "{\"ok\":false,\"error\":\"请求格式错误\"}");
     return;
   }
+  httpReleaseAccumulatedBody(request);
 
   const char* token = doc["token"] | "";
   if (g_resetToken.length() == 0 || strcmp(token, g_resetToken.c_str()) != 0) {
@@ -360,15 +374,19 @@ void resetConfigController(AsyncWebServerRequest* request, uint8_t* data,
 // ── 重启设备端点 ─────────────────────────────────────────────
 void rebootController(AsyncWebServerRequest* request, uint8_t* data,
                       size_t len, size_t index, size_t total) {
-  if (index + len < total) return;
+  const char* body = nullptr;
+  if (!httpAccumulateBody(request, data, len, index, total, HTTP_JSON_BODY_MAX_BYTES, &body)) return;
+  if (body == nullptr) return;
 
   JsonDocument doc;
-  if (deserializeJson(doc, data, len) != DeserializationError::Ok
+  if (deserializeJson(doc, body) != DeserializationError::Ok
       || !doc.is<JsonObject>()) {
+    httpReleaseAccumulatedBody(request);
     request->send(400, "application/json",
       "{\"ok\":false,\"error\":\"请求格式错误\"}");
     return;
   }
+  httpReleaseAccumulatedBody(request);
 
   const char* token = doc["token"] | "";
   if (g_resetToken.length() == 0 || strcmp(token, g_resetToken.c_str()) != 0) {

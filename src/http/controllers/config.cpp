@@ -1,5 +1,6 @@
 #include "config.h"
 #include "config/config.h"
+#include "http/body_accumulator.h"
 #include "logger.h"
 #include <AsyncJson.h>
 #include <ArduinoJson.h>
@@ -86,28 +87,17 @@ void configExportController(AsyncWebServerRequest* request) {
 // 同时兼容旧 namespace-grouped 格式（sms_config/reboot_cfg 顶层键）。
 void configImportController(AsyncWebServerRequest* request, uint8_t* data,
                             size_t len, size_t index, size_t total) {
-  if (total > 51200) {
-    if (index == 0) {
-      request->send(400, "application/json", "{\"ok\":false,\"error\":\"文件大小超过限制（最大50KB）\"}");
-    }
-    return;
-  }
-
-  // 累积所有分块到 static 缓冲区
-  static String importBuf;
-  if (index == 0) {
-    importBuf = "";
-    importBuf.reserve(total);
-  }
-  importBuf.concat(reinterpret_cast<const char*>(data), len);
-
-  if (index + len < total) return;
+  const char* importBuf = nullptr;
+  if (!httpAccumulateBody(request, data, len, index, total, HTTP_JSON_BODY_MAX_BYTES, &importBuf)) return;
+  if (importBuf == nullptr) return;
 
   JsonDocument doc;
   if (deserializeJson(doc, importBuf) != DeserializationError::Ok || !doc.is<JsonObject>()) {
+    httpReleaseAccumulatedBody(request);
     request->send(400, "application/json", "{\"ok\":false,\"error\":\"JSON解析失败，请确认文件格式正确\"}");
     return;
   }
+  httpReleaseAccumulatedBody(request);
 
   // 旧 namespace-grouped 格式识别
   if (doc["sms_config"].is<JsonObject>() || doc["reboot_cfg"].is<JsonObject>()) {

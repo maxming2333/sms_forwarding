@@ -128,7 +128,7 @@ String simQueryPhoneNumber(unsigned long timeoutMs = 3000);
  *        必须与 simResumeReader() 配对使用。
  *        在 simDispatcherStart() 之前调用无效。
  */
-void simPauseReader();
+bool simPauseReader(unsigned long timeoutMs = 10000);
 
 /**
  * @brief 恢复 SIM reader task（与 simPauseReader() 配对）。

@@ -1,5 +1,6 @@
 #include "blacklist.h"
 #include "config/config.h"
+#include "http/body_accumulator.h"
 #include "logger.h"
 #include <ArduinoJson.h>
 
@@ -17,11 +18,13 @@ void blacklistGetController(AsyncWebServerRequest* request) {
 }
 
 void blacklistPostController(AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
-  // Accumulate body if chunked; process only when complete
-  if (index + len < total) return;
+  const char* requestBody = nullptr;
+  if (!httpAccumulateBody(request, data, len, index, total, HTTP_JSON_BODY_MAX_BYTES, &requestBody)) return;
+  if (requestBody == nullptr) return;
 
   JsonDocument doc;
-  DeserializationError err = deserializeJson(doc, data, len);
+  DeserializationError err = deserializeJson(doc, requestBody);
+  httpReleaseAccumulatedBody(request);
   if (err || !doc["numbers"].is<JsonArray>()) {
     request->send(400, "application/json", "{\"ok\":false,\"error\":\"请求格式错误\"}");
     return;

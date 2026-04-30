@@ -181,6 +181,17 @@ static void onlineUpgradeTask(void* param) {
 
         int contentLen = dlHttp.getSize();
         LOG("OTA", "固件大小: %d 字节", contentLen);
+        if (contentLen <= 0) {
+            dlHttp.end();
+            esp_ota_abort(g_otaHandle);
+            otaTaskAbort("固件服务器未返回有效大小");
+        }
+        if ((size_t)contentLen > g_otaPart->size) {
+            dlHttp.end();
+            esp_ota_abort(g_otaHandle);
+            LOG("OTA", "固件大小超过 OTA 分区: %d > %u", contentLen, (unsigned)g_otaPart->size);
+            otaTaskAbort("固件大小超过 OTA 分区");
+        }
 
         WiFiClient* dlStream = dlHttp.getStreamPtr();
         uint8_t dlBuf[512];
@@ -194,6 +205,11 @@ static void onlineUpgradeTask(void* param) {
                 int toRead  = min(available, (int)sizeof(dlBuf));
                 int readLen = dlStream->readBytes(dlBuf, toRead);
                 if (readLen > 0) {
+                    if ((size_t)totalWritten + (size_t)readLen > g_otaPart->size) {
+                        LOG("OTA", "固件写入超过 OTA 分区边界");
+                        dlFailed = true;
+                        break;
+                    }
                     esp_err_t wErr = esp_ota_write(g_otaHandle, dlBuf, readLen);
                     if (wErr != ESP_OK) {
                         LOG("OTA", "esp_ota_write 失败: %s", esp_err_to_name(wErr));
@@ -269,53 +285,68 @@ static void onlineUpgradeTask(void* param) {
             } else {
                 int fsContentLen = fsHttp.getSize();
                 LOG("OTA", "LittleFS 大小: %d 字节", fsContentLen);
-                g_message = "正在写入 Web UI...";
-
-                LittleFS.end();
-                esp_err_t eraseErr = esp_partition_erase_range(fsPart, 0, fsPart->size);
-                if (eraseErr != ESP_OK) {
+                if (fsContentLen <= 0) {
                     fsHttp.end();
-                    LOG("OTA", "LittleFS 分区擦除失败: %s", esp_err_to_name(eraseErr));
-                    otaTaskAbort("Web UI 分区擦除失败: " + String(esp_err_to_name(eraseErr)));
-                }
+                    LOG("OTA", "LittleFS 响应未返回有效大小，跳过 Web UI 升级");
+                    fsFailed = true;
+                } else if ((size_t)fsContentLen > fsPart->size) {
+                    fsHttp.end();
+                    LOG("OTA", "LittleFS 镜像超过分区大小: %d > %u", fsContentLen, (unsigned)fsPart->size);
+                    fsFailed = true;
+                } else {
+                    g_message = "正在写入 Web UI...";
 
-                WiFiClient* fsStream = fsHttp.getStreamPtr();
-                uint8_t fsBuf[512];
-                int fsRemaining        = fsContentLen;
-                unsigned long fsLastDataMs = millis();
+                    LittleFS.end();
+                    esp_err_t eraseErr = esp_partition_erase_range(fsPart, 0, fsPart->size);
+                    if (eraseErr != ESP_OK) {
+                        fsHttp.end();
+                        LOG("OTA", "LittleFS 分区擦除失败: %s", esp_err_to_name(eraseErr));
+                        otaTaskAbort("Web UI 分区擦除失败: " + String(esp_err_to_name(eraseErr)));
+                    }
 
-                while (fsHttp.connected() && (fsRemaining > 0 || fsRemaining == -1)) {
-                    int fsAvailable = fsStream->available();
-                    if (fsAvailable > 0) {
-                        fsLastDataMs = millis();
-                        int fsToRead  = min(fsAvailable, (int)sizeof(fsBuf));
-                        int fsReadLen = fsStream->readBytes(fsBuf, fsToRead);
-                        if (fsReadLen > 0) {
-                            esp_err_t wErr = esp_partition_write(fsPart, fsTotalWritten, fsBuf, fsReadLen);
-                            if (wErr != ESP_OK) {
-                                LOG("OTA", "LittleFS esp_partition_write 失败: %s", esp_err_to_name(wErr));
+                    WiFiClient* fsStream = fsHttp.getStreamPtr();
+                    uint8_t fsBuf[512];
+                    int fsRemaining        = fsContentLen;
+                    unsigned long fsLastDataMs = millis();
+
+                    while (fsHttp.connected() && (fsRemaining > 0 || fsRemaining == -1)) {
+                        int fsAvailable = fsStream->available();
+                        if (fsAvailable > 0) {
+                            fsLastDataMs = millis();
+                            int fsToRead  = min(fsAvailable, (int)sizeof(fsBuf));
+                            int fsReadLen = fsStream->readBytes(fsBuf, fsToRead);
+                            if (fsReadLen > 0) {
+                                if ((size_t)fsTotalWritten + (size_t)fsReadLen > fsPart->size) {
+                                    LOG("OTA", "LittleFS 写入超过分区边界");
+                                    fsFailed = true;
+                                    break;
+                                }
+                                esp_err_t wErr = esp_partition_write(fsPart, fsTotalWritten, fsBuf, fsReadLen);
+                                if (wErr != ESP_OK) {
+                                    LOG("OTA", "LittleFS esp_partition_write 失败: %s", esp_err_to_name(wErr));
+                                    fsFailed = true;
+                                    break;
+                                }
+                                fsTotalWritten += fsReadLen;
+                                if (fsRemaining > 0) fsRemaining -= fsReadLen;
+                                if (fsContentLen > 0) {
+                                    g_progress = (uint8_t)((fsTotalWritten * 100) / fsContentLen);
+                                }
+                            }
+                        } else {
+                            if (millis() - fsLastDataMs > (unsigned long)OTA_HTTP_TIMEOUT_MS) {
+                                LOG("OTA", "LittleFS 下载超时，已写入 %d/%d 字节", fsTotalWritten, fsContentLen);
                                 fsFailed = true;
                                 break;
                             }
-                            fsTotalWritten += fsReadLen;
-                            if (fsRemaining > 0) fsRemaining -= fsReadLen;
-                            if (fsContentLen > 0) {
-                                g_progress = (uint8_t)((fsTotalWritten * 100) / fsContentLen);
-                            }
+                            vTaskDelay(pdMS_TO_TICKS(10));
                         }
-                    } else {
-                        if (millis() - fsLastDataMs > (unsigned long)OTA_HTTP_TIMEOUT_MS) {
-                            LOG("OTA", "LittleFS 下载超时，已写入 %d/%d 字节", fsTotalWritten, fsContentLen);
-                            fsFailed = true;
-                            break;
-                        }
-                        vTaskDelay(pdMS_TO_TICKS(10));
                     }
-                }
-                fsHttp.end();
+                    fsHttp.end();
 
-                if (fsContentLen > 0 && fsTotalWritten < fsContentLen) {
-                    fsFailed = true;
+                    if (fsContentLen > 0 && fsTotalWritten < fsContentLen) {
+                        fsFailed = true;
+                    }
                 }
             }
         }  // fsTls destructor 此处释放 mbedtls 上下文
@@ -427,6 +458,17 @@ bool otaHandleUploadChunk(uint8_t* data, size_t len, size_t index, bool final) {
         LOG("OTA", "手动上传开始，OTA 分区: %s", g_otaPart->label);
     }
 
+    if (g_otaPart && index + len > g_otaPart->size) {
+        esp_ota_abort(g_otaHandle);
+        g_state   = OtaState::FAILED;
+        g_message = "固件大小超过 OTA 分区";
+        LOG("OTA", "手动上传超过 OTA 分区边界: %u > %u", (unsigned)(index + len), (unsigned)g_otaPart->size);
+        vTaskDelay(pdMS_TO_TICKS(5000));
+        g_inProgress = false;
+        g_state      = OtaState::IDLE;
+        return false;
+    }
+
     // 写入当前块
     err = esp_ota_write(g_otaHandle, data, len);
     if (err != ESP_OK) {
@@ -523,6 +565,16 @@ bool otaHandleLfsUploadChunk(uint8_t* data, size_t len, size_t index, size_t tot
 
     // 写入当前块
     if (len > 0) {
+        if (g_lfsPart && g_lfsWriteOffset + len > g_lfsPart->size) {
+            g_state   = OtaState::FAILED;
+            g_message = "LittleFS 镜像超过分区大小";
+            LOG("OTA", "LittleFS 手动上传超过分区边界: %u > %u",
+                (unsigned)(g_lfsWriteOffset + len), (unsigned)g_lfsPart->size);
+            vTaskDelay(pdMS_TO_TICKS(5000));
+            g_inProgress = false;
+            g_state      = OtaState::IDLE;
+            return false;
+        }
         esp_err_t wErr = esp_partition_write(g_lfsPart, g_lfsWriteOffset, data, len);
         if (wErr != ESP_OK) {
             g_state   = OtaState::FAILED;

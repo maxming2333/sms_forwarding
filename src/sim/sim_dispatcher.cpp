@@ -6,12 +6,33 @@
 
 static QueueHandle_t   s_queue       = nullptr;
 static TaskHandle_t    s_task        = nullptr;
+static SemaphoreHandle_t s_directTxnMutex = nullptr;
 static SimUrcCallback  s_urcCb       = nullptr;
 static SimCmdSlot*     s_activeCmd   = nullptr;
 static unsigned long   s_cmdStartMs  = 0;
+static volatile bool   s_pauseRequested = false;
+static volatile bool   s_readerPaused   = false;
+static bool            s_drainAfterTimeout = false;
+static unsigned long   s_lastRxMs          = 0;
 
 // CMT PDU 行检测状态（是否等待 PDU 数据行）
 static bool            s_waitingPdu  = false;
+
+static constexpr size_t SIM_RESP_BUF_SIZE = 256;
+static constexpr size_t SIM_LINE_BUF_MAX  = 512;
+static constexpr unsigned long SIM_TIMEOUT_DRAIN_QUIET_MS = 300;
+
+static bool isFinalOkLine(const String& line) {
+    String s = line;
+    s.trim();
+    return s.equals("OK");
+}
+
+static bool isFinalErrorLine(const String& line) {
+    String s = line;
+    s.trim();
+    return s.equals("ERROR") || s.startsWith("+CME ERROR") || s.startsWith("+CMS ERROR");
+}
 
 // ---------- 内部 URC 识别 ----------
 
@@ -63,6 +84,25 @@ static void routeURC(const String& line) {
     }
 }
 
+static void appendResponseLine(SimCmdSlot* slot, const String& line) {
+    size_t existing = strnlen(slot->respBuf, SIM_RESP_BUF_SIZE);
+    if (existing >= SIM_RESP_BUF_SIZE - 1) return;
+
+    size_t remaining = (SIM_RESP_BUF_SIZE - 1) - existing;
+    size_t copyLen = line.length();
+    if (copyLen > remaining) copyLen = remaining;
+    if (copyLen > 0) {
+        memcpy(slot->respBuf + existing, line.c_str(), copyLen);
+        existing += copyLen;
+        slot->respBuf[existing] = '\0';
+    }
+
+    if (existing < SIM_RESP_BUF_SIZE - 1) {
+        slot->respBuf[existing++] = '\n';
+        slot->respBuf[existing] = '\0';
+    }
+}
+
 // ---------- SIM reader task ----------
 
 static void simReaderTask(void*) {
@@ -70,9 +110,18 @@ static void simReaderTask(void*) {
     lineBuf.reserve(400);  // 预分配，SMS PDU hex 串典型长度约 340 字符
 
     for (;;) {
+        if (s_pauseRequested && s_activeCmd == nullptr) {
+            s_readerPaused = true;
+            while (s_pauseRequested) {
+                vTaskDelay(pdMS_TO_TICKS(5));
+            }
+            s_readerPaused = false;
+        }
+
         // 读取 Serial1 字符，按行处理
         while (Serial1.available()) {
             char c = (char)Serial1.read();
+            s_lastRxMs = millis();
             if (c == '\n') {
                 String line = lineBuf;
                 lineBuf = "";
@@ -85,27 +134,13 @@ static void simReaderTask(void*) {
                         LOG("SIM", "[URC-during-cmd] %s", line.c_str());
                         routeURC(line);
                     } else {
-                    // 追加到响应缓冲（防溢出）
-                    size_t existing = strlen(s_activeCmd->respBuf);
-                    size_t avail    = 255 - existing;
-                    if (avail > 0) {
-                        strncat(s_activeCmd->respBuf, line.c_str(), avail);
-                        if (avail > 1) {
-                            s_activeCmd->respBuf[existing + avail - 1] = '\0';
-                        }
-                        // 追加换行分隔
-                        size_t cur = strlen(s_activeCmd->respBuf);
-                        if (cur < 254) {
-                            s_activeCmd->respBuf[cur]     = '\n';
-                            s_activeCmd->respBuf[cur + 1] = '\0';
-                        }
-                    }
+                    appendResponseLine(s_activeCmd, line);
 
-                    if (line.indexOf("OK") >= 0) {
+                    if (isFinalOkLine(line)) {
                         s_activeCmd->isOk = true;
                         xSemaphoreGive(s_activeCmd->doneSem);
                         s_activeCmd = nullptr;
-                    } else if (line.indexOf("ERROR") >= 0) {
+                    } else if (isFinalErrorLine(line)) {
                         s_activeCmd->isOk = false;
                         xSemaphoreGive(s_activeCmd->doneSem);
                         s_activeCmd = nullptr;
@@ -116,11 +151,23 @@ static void simReaderTask(void*) {
                 }
             } else if (c != '\r') {
                 lineBuf += c;
+                if (lineBuf.length() > SIM_LINE_BUF_MAX) {
+                    LOG("SIM", "串口行超过 %u 字节，已丢弃", (unsigned)SIM_LINE_BUF_MAX);
+                    lineBuf = "";
+                    s_waitingPdu = false;
+                }
             }
         }
 
         // 取下一条命令（若当前无活跃命令）
-        if (s_activeCmd == nullptr) {
+        if (s_activeCmd == nullptr && !s_pauseRequested) {
+            if (s_drainAfterTimeout) {
+                if (millis() - s_lastRxMs < SIM_TIMEOUT_DRAIN_QUIET_MS) {
+                    vTaskDelay(pdMS_TO_TICKS(5));
+                    continue;
+                }
+                s_drainAfterTimeout = false;
+            }
             SimCmdSlot* ptr = nullptr;
             if (xQueueReceive(s_queue, &ptr, 0) == pdTRUE && ptr != nullptr) {
                 s_activeCmd   = ptr;
@@ -136,6 +183,8 @@ static void simReaderTask(void*) {
             s_activeCmd->isOk = false;
             xSemaphoreGive(s_activeCmd->doneSem);
             s_activeCmd = nullptr;
+            s_drainAfterTimeout = true;
+            s_lastRxMs = millis();
         }
 
         vTaskDelay(pdMS_TO_TICKS(5));
@@ -152,6 +201,13 @@ void simDispatcherStart() {
     s_queue = xQueueCreate(SIM_CMD_QUEUE_SIZE, sizeof(SimCmdSlot*));
     if (s_queue == nullptr) {
         LOG("SIM", "simDispatcherStart: 队列创建失败");
+        return;
+    }
+    s_directTxnMutex = xSemaphoreCreateMutex();
+    if (s_directTxnMutex == nullptr) {
+        LOG("SIM", "simDispatcherStart: 直接事务互斥锁创建失败");
+        vQueueDelete(s_queue);
+        s_queue = nullptr;
         return;
     }
     xTaskCreate(simReaderTask, "sim_reader", SIM_READER_TASK_STACK,
@@ -200,12 +256,32 @@ bool simSendCommand(const char* cmd, unsigned long timeoutMs,
     return slot.isOk;
 }
 
-void simPauseReader() {
-    if (s_task != nullptr) vTaskSuspend(s_task);
+bool simPauseReader(unsigned long timeoutMs) {
+    if (s_task == nullptr) return true;
+    if (s_directTxnMutex == nullptr) return false;
+    if (xSemaphoreTake(s_directTxnMutex, pdMS_TO_TICKS(timeoutMs)) != pdTRUE) {
+        LOG("SIM", "等待直接串口事务锁超时");
+        return false;
+    }
+    s_pauseRequested = true;
+    unsigned long start = millis();
+    while (!s_readerPaused) {
+        if (millis() - start >= timeoutMs) {
+            s_pauseRequested = false;
+            xSemaphoreGive(s_directTxnMutex);
+            LOG("SIM", "等待 reader 暂停超时");
+            return false;
+        }
+        vTaskDelay(pdMS_TO_TICKS(5));
+    }
+    return true;
 }
 
 void simResumeReader() {
-    if (s_task != nullptr) vTaskResume(s_task);
+    s_pauseRequested = false;
+    if (s_directTxnMutex != nullptr) {
+        xSemaphoreGive(s_directTxnMutex);
+    }
 }
 
 bool simDispatcherRunning() {

@@ -173,7 +173,10 @@ static bool sendOnePDU(const char* phoneNumber, const char* message, unsigned sh
   LOG("SMS", "PDU长度=%d，PDU前16字符: %.16s", pduLen, pdu.getSMS());
 
   String cmgsCmd = "AT+CMGS="; cmgsCmd += pduLen;
-  simPauseReader();
+  if (!simPauseReader()) {
+    LOG("SMS", "无法暂停 SIM reader，取消发送");
+    return false;
+  }
   while (Serial1.available()) Serial1.read();
   Serial1.println(cmgsCmd);
 
@@ -623,8 +626,11 @@ static bool extractRawUd8bit(const String& hexPdu, uint8_t* udBuf, int& udLen, u
   int bodyLen   = udl;
 
   if (udhi && udl > 0) {
+    if (p >= binLen) return false;
     int udhl   = bin[p];           // UDH 内容长度（不含自身）
+    if (1 + udhl > udl) return false;
     int udhEnd = p + 1 + udhl;
+    if (udhEnd > binLen) return false;
     // 遍历 IEI 记录，查找 Application Port Addressing
     int q = p + 1;
     while (q + 1 < udhEnd && q + 1 < binLen) {
@@ -646,6 +652,7 @@ static bool extractRawUd8bit(const String& hexPdu, uint8_t* udBuf, int& udLen, u
   }
 
   int copyLen = bodyLen < 160 ? bodyLen : 160;
+  if (bodyStart < 0 || bodyStart + copyLen > binLen) return false;
   memcpy(udBuf, bin + bodyStart, copyLen);
   udLen = copyLen;
   return true;
@@ -758,6 +765,10 @@ static void processPduLine(const String& line) {
   LOG("SMS", "长短信信息: 参考号=%d 当前=%d 总计=%d", refNumber, partNumber, totalParts);
 
   if (totalParts > 1 && partNumber > 0) {
+    if (totalParts > MAX_CONCAT_PARTS) {
+      LOG("SMS", "长短信总段数 %d 超过缓存上限 %d，丢弃", totalParts, MAX_CONCAT_PARTS);
+      return;
+    }
     LOG("SMS", "收到长短信分段 %d/%d", partNumber, totalParts);
     int slot = findOrCreateConcatSlot(refNumber, pdu.getSender(), totalParts);
     int partIndex = partNumber - 1;
