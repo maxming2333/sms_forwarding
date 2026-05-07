@@ -34,11 +34,16 @@ struct MsgTypeInfo {
 // 单条消息会按通道顺序串行调用各渠道；失败会进入 PushRetry 队列重试。
 class Push {
 public:
-  // 向所有启用的渠道派发一条消息；内部处理失败重试入队。
+  // 向所有启用的渠道派发一条消息；入队至 PushQueue 串行执行。
   static void send(const String& sender, const String& message,
                    const String& timestamp, const MsgTypeInfo& msgType);
 
+  // 直接执行推送链（不经过 PushQueue），由 PushQueue::tick()/PushRetry::tick() 调用。
+  // 调用方须确保不在 sms_proc 等后台任务中直接调用（避免阻塞 SIM reader）。
+  static void executeChain(const String& sender, const String& message,
+                      const String& timestamp, const MsgTypeInfo& msgType);
+
   // 单渠道推送（通常由重试队列回调）。返回 true 表示该渠道成功。
-  static bool sendChannel(int channelIdx, const String& sender, const String& message,
+  static bool executeChannel(int channelIdx, const String& sender, const String& message,
                           const String& timestamp, const MsgTypeInfo& msgType);
 };

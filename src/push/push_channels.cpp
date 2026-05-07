@@ -56,13 +56,30 @@ static int64_t getUtcMillis() {
   return (int64_t)time(nullptr) * 1000LL;
 }
 
+// 上次 HTTP 请求完成的时刻（millis()）；0 表示尚未发送过任何请求。
+static unsigned long s_lastHttpEndMs = 0;
+
+// 结束 HTTP 请求并记录完成时刻，供下一次 beginHttpClient 计算冷却间隔。
+static void endHttpClient(HTTPClient& http) {
+  http.end();
+  s_lastHttpEndMs = millis();
+}
+
 static void beginHttpClient(HTTPClient& http, WiFiClientSecure& tlsClient, const String& url) {
+  // 若距上次请求完成不足 HTTP_COOLDOWN_MS，稍作等待，
+  // 给 TCP/TLS 栈（mbedtls 上下文、lwIP socket）足够的资源释放时间。
+  unsigned long now = millis();
+  if (s_lastHttpEndMs > 0 && now - s_lastHttpEndMs < HTTP_COOLDOWN_MS) {
+    delay(HTTP_COOLDOWN_MS - (now - s_lastHttpEndMs));
+  }
   if (url.startsWith("https://")) {
     tlsClient.setInsecure();
     http.begin(tlsClient, url);
   } else {
     http.begin(url);
   }
+  http.setConnectTimeout(5000);
+  http.setTimeout(10000);
 }
 
 // ---------- channel implementations ----------
@@ -87,7 +104,7 @@ bool PushChannels::sendPostJson(const PushChannel& ch, const String& sender, con
   LOG("Push", "POST JSON to %s: %s", ch.url.c_str(), body.c_str());
   int code = http.POST(body);
   LOG("Push", "响应码: %d", code);
-  http.end();
+  endHttpClient(http);
   return code >= 200 && code < 300;
 }
 
@@ -108,7 +125,7 @@ bool PushChannels::sendBark(const PushChannel& ch, const String& sender, const S
   LOG("Push", "Bark to %s: %s", ch.url.c_str(), body.c_str());
   int code = http.POST(body);
   LOG("Push", "响应码: %d", code);
-  http.end();
+  endHttpClient(http);
   return code >= 200 && code < 300;
 }
 
@@ -126,7 +143,7 @@ bool PushChannels::sendGet(const PushChannel& ch, const String& sender, const St
   beginHttpClient(http, tlsClient, url);
   int code = http.GET();
   LOG("Push", "响应码: %d", code);
-  http.end();
+  endHttpClient(http);
   return code >= 200 && code < 300;
 }
 
@@ -159,7 +176,7 @@ bool PushChannels::sendDingtalk(const PushChannel& ch, const String& sender, con
   LOG("Push", "DingTalk: %s", body.c_str());
   int code = http.POST(body);
   LOG("Push", "响应码: %d", code);
-  http.end();
+  endHttpClient(http);
   return code >= 200 && code < 300;
 }
 
@@ -193,7 +210,7 @@ bool PushChannels::sendPushPlus(const PushChannel& ch, const String& sender, con
   LOG("Push", "PushPlus: %s", body.c_str());
   int code = http.POST(body);
   LOG("Push", "响应码: %d", code);
-  http.end();
+  endHttpClient(http);
   return code >= 200 && code < 300;
 }
 
@@ -212,7 +229,7 @@ bool PushChannels::sendServerChan(const PushChannel& ch, const String& sender, c
   LOG("Push", "Server酱: %s", postData.c_str());
   int code = http.POST(postData);
   LOG("Push", "响应码: %d", code);
-  http.end();
+  endHttpClient(http);
   return code >= 200 && code < 300;
 }
 
@@ -227,7 +244,7 @@ bool PushChannels::sendCustom(const PushChannel& ch, const String& sender, const
   LOG("Push", "POST请求: %s，body长度: %d", ch.url.c_str(), body.length());
   int code = http.POST(body);
   LOG("Push", "响应码: %d", code);
-  http.end();
+  endHttpClient(http);
   return code >= 200 && code < 300;
 }
 
@@ -256,7 +273,7 @@ bool PushChannels::sendFeishu(const PushChannel& ch, const String& sender, const
   LOG("Push", "飞书: %s", body.c_str());
   int code = http.POST(body);
   LOG("Push", "响应码: %d", code);
-  http.end();
+  endHttpClient(http);
   return code >= 200 && code < 300;
 }
 
@@ -280,7 +297,7 @@ bool PushChannels::sendGotify(const PushChannel& ch, const String& sender, const
   LOG("Push", "Gotify: %s", body.c_str());
   int code = http.POST(body);
   LOG("Push", "响应码: %d", code);
-  http.end();
+  endHttpClient(http);
   return code >= 200 && code < 300;
 }
 
@@ -304,7 +321,7 @@ bool PushChannels::sendTelegram(const PushChannel& ch, const String& sender, con
   LOG("Push", "Telegram: %s", body.c_str());
   int code = http.POST(body);
   LOG("Push", "响应码: %d", code);
-  http.end();
+  endHttpClient(http);
   return code >= 200 && code < 300;
 }
 
@@ -323,7 +340,6 @@ bool PushChannels::sendWechatWork(const PushChannel& ch, const String& sender, c
   WiFiClientSecure tlsClient;
   beginHttpClient(http, tlsClient, webhookUrl);
   http.addHeader("Content-Type", "application/json");
-  http.setTimeout(10000);
 
   String content = renderedBody.length() > 0 ? renderedBody
                  : ("📱短信通知\n发件人: " + sender + "\n内容: " + message + "\n时间: " + timestamp);
@@ -336,7 +352,7 @@ bool PushChannels::sendWechatWork(const PushChannel& ch, const String& sender, c
   LOG("Push", "企业微信: %s", body.c_str());
   int code = http.POST(body);
   LOG("Push", "响应码: %d", code);
-  http.end();
+  endHttpClient(http);
   if (code < 200 || code >= 300) {
     LOG("Push", "企业微信推送失败，状态码: %d", code);
     return false;

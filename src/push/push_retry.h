@@ -10,6 +10,10 @@ constexpr int           PUSH_RETRY_FULL_CHAIN    = -1;
 // 重试节奏：每 5 秒 tick 一次队列
 constexpr unsigned long PUSH_RETRY_INTERVAL_MS   = 5000;
 
+// 号码等待相关常量
+constexpr unsigned long WAITING_NUMBER_CHECK_MS   = 30000;
+constexpr unsigned long WAITING_NUMBER_TIMEOUT_MS = 300000;
+
 // 重试原因
 enum class RetryReason : uint8_t {
   SEND_FAILED    = 0,    // 渠道发送失败（网络错误/HTTP 非 2xx 等）

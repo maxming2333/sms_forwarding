@@ -1,6 +1,7 @@
 #include "push.h"
 #include "push_channels.h"
 #include "push_retry.h"
+#include "push_queue.h"
 #include "msg_context.h"
 #include "time/time_sync.h"
 #include "sim/sim.h"
@@ -79,7 +80,7 @@ static MessageContext buildMsgContext(const String& sender, const String& messag
 }
 
 // 单通道推送：含跳过判断、构建消息上下文，供重试队列调用
-bool Push::sendChannel(int channelIdx, const String& sender, const String& message, const String& timestamp, const MsgTypeInfo& msgType) {
+bool Push::executeChannel(int channelIdx, const String& sender, const String& message, const String& timestamp, const MsgTypeInfo& msgType) {
   if (channelIdx < 0 || channelIdx >= config.pushCount) return false;
   const PushChannel& ch = config.pushChannels[channelIdx];
   if (!ConfigStore::isPushChannelValid(ch)) return false;
@@ -96,6 +97,10 @@ bool Push::sendChannel(int channelIdx, const String& sender, const String& messa
 }
 
 void Push::send(const String& sender, const String& message, const String& timestamp, const MsgTypeInfo& msgType) {
+  PushQueue::enqueue(sender, message, timestamp, msgType);
+}
+
+void Push::executeChain(const String& sender, const String& message, const String& timestamp, const MsgTypeInfo& msgType) {
   // T015: 推送前检查本机号码是否就绪
   // 入队整条推送链，待号码就绪后重新完整执行，确保故障转移策略正确生效
   if (!Sim::isNumberReady()) {

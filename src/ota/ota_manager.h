@@ -29,6 +29,7 @@ static const char* const OTA_RELEASES_BASE_URL = "https://github.com/maxming2333
 static constexpr uint32_t    OTA_TASK_STACK_SIZE  = 12288;
 static constexpr UBaseType_t OTA_TASK_PRIORITY    = 1;
 static constexpr int         OTA_HTTP_TIMEOUT_MS  = 15000;
+constexpr unsigned long      OTA_CHECK_DEBOUNCE_MS = 30000;  // 同一会话内至多每 30s 检查一次
 
 // Ota：固件 OTA + LittleFS 烧录入口。所有耗时操作都在独立 FreeRTOS 任务执行，
 // 不阻塞 HTTP 请求。注意：本类内部使用**栈上**的 WiFiClientSecure，与 Push 共享禁用。

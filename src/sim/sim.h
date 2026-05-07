@@ -12,6 +12,8 @@ enum SimState {
   SIM_INIT_FAILED  = 5     // 初始化失败
 };
 
+constexpr unsigned long SIM_NUMBER_RETRY_INTERVAL_MS = 5000;
+
 // SIM 业务层：负责 SIM 生命周期、状态机、缓存信息（号码/运营商/信号）。
 // 与底层 AT 通讯解耦：所有 AT 调度（互斥/队列/Reader Task）由 SimDispatcher 提供，
 // 本类仅在其上构建业务方法（如 queryPhoneNumber、fetchInfo）。

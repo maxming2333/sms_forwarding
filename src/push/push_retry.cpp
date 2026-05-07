@@ -4,16 +4,15 @@
 #include "logger.h"
 #include <queue>
 
-// 号码等待相关常量
-constexpr unsigned long WAITING_NUMBER_CHECK_MS   = 30000;
-constexpr unsigned long WAITING_NUMBER_TIMEOUT_MS = 300000;
-
 // 内部重试条目：包装 PushRetryTask + 下次重试时间戳
 struct RetryEntry {
   PushRetryTask     task;
   unsigned long     nextRetryMs;
 };
 
+// std::queue 非线程安全，但 PushRetry 的所有操作（enqueue/tick）均在主循环
+// 任务中执行（经由 PushQueue::tick → Push::sendNow，或 PushRetry::tick → Push::sendNow），
+// 因此无并发访问，不需要互斥锁。
 static std::queue<RetryEntry> s_retryQueue;
 
 void PushRetry::init() {
@@ -55,10 +54,10 @@ void PushRetry::tick() {
     if (millis() - t.enqueueMs > WAITING_NUMBER_TIMEOUT_MS) {
       LOG("Retry", "等待超时，强制发送，通道索引 %d", t.channelIndex);
       if (t.channelIndex == PUSH_RETRY_FULL_CHAIN) {
-        Push::send(t.sender, t.message, t.timestamp, t.msgType);
+          Push::executeChain(t.sender, t.message, t.timestamp, t.msgType);
       } else {
         String forceSender = t.sender + " [接收者未知]";
-        Push::sendChannel(t.channelIndex, forceSender, t.message, t.timestamp, t.msgType);
+        Push::executeChannel(t.channelIndex, forceSender, t.message, t.timestamp, t.msgType);
       }
       s_retryQueue.pop();
       return;
@@ -67,12 +66,12 @@ void PushRetry::tick() {
     if (Sim::isNumberReady()) {
       if (t.channelIndex == PUSH_RETRY_FULL_CHAIN) {
         LOG("Retry", "号码就绪，重新执行完整推送链");
-        Push::send(t.sender, t.message, t.timestamp, t.msgType);
+          Push::executeChain(t.sender, t.message, t.timestamp, t.msgType);
         s_retryQueue.pop();
         return;
       }
       LOG("Retry", "号码就绪，立即发送，通道索引 %d", t.channelIndex);
-      bool ok = Push::sendChannel(t.channelIndex, t.sender, t.message, t.timestamp, t.msgType);
+      bool ok = Push::executeChannel(t.channelIndex, t.sender, t.message, t.timestamp, t.msgType);
       if (ok) {
         LOG("Retry", "号码就绪发送成功，通道索引 %d，出队", t.channelIndex);
       } else {
@@ -94,7 +93,7 @@ void PushRetry::tick() {
 
   // RetryReason::SEND_FAILED — 保持原有逻辑
   if (millis() < front.nextRetryMs) return;
-  bool ok = Push::sendChannel(t.channelIndex, t.sender, t.message, t.timestamp, t.msgType);
+  bool ok = Push::executeChannel(t.channelIndex, t.sender, t.message, t.timestamp, t.msgType);
   if (ok) {
     LOG("Retry", "重试成功，通道索引 %d，出队", t.channelIndex);
     s_retryQueue.pop();

@@ -11,19 +11,6 @@
 #include <freertos/queue.h>
 #include <freertos/task.h>
 
-// ---------- SMS 处理任务配置 ----------
-
-// PDU 队列深度：SIM 模组 CNMI=2,2 模式下 AT URIs 每条短信最多缓冲 5 段，
-// 队列容量 16 足以应对突发的多条长短信
-static constexpr int  SMS_QUEUE_DEPTH      = 16;
-// sms_proc 任务栈：包含 pdulib decode（gsm7bit[160]），多次 LOG（char msg[256] 各一帧），
-// 以及 assembleConcatSms/Push::send 等，分配 8192 字节留足余量
-static constexpr int  SMS_PROC_TASK_STACK  = 8192;
-static constexpr int  SMS_PROC_TASK_PRIO   = 2;
-
-// PDU 字符串最大长度（SIM 模组单条 PDU hex 串最长 ~340 字符）
-static constexpr int  PDU_MAX_LEN          = 400;
-
 // 队列项类型：PDU（短信） vs USSD（运营商交互上报）。
 // 二者均需在 sms_proc 任务上下文执行推送，避免阻塞 SIM reader task。
 enum class SmsItemKind : uint8_t { PDU = 0, USSD = 1 };

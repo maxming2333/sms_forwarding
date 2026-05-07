@@ -20,10 +20,6 @@ unsigned long     s_lastRxMs          = 0;
 // CMT PDU 行检测状态（是否等待 PDU 数据行）
 bool              s_waitingPdu        = false;
 
-constexpr size_t        SIM_RESP_BUF_SIZE          = 256;
-constexpr size_t        SIM_LINE_BUF_MAX           = 512;
-constexpr unsigned long SIM_TIMEOUT_DRAIN_QUIET_MS = 300;
-
 bool isFinalOkLine(const String& line) {
     String s = line;
     s.trim();

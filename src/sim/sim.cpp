@@ -21,7 +21,6 @@ static String   s_phoneNum   = "未知";
 // ---------- US021: 本机号码重试状态 ----------
 static bool          s_numberReady   = false;
 static unsigned long s_numRetryNext  = 0;
-static constexpr unsigned long SIM_NUMBER_RETRY_INTERVAL_MS = 5000;
 
 // ---------- US2: 数据流量状态机 ----------
 

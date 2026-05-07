@@ -6,6 +6,19 @@ constexpr int          MAX_CONCAT_PARTS    = 10;        // 单条拼接短信最
 constexpr unsigned long CONCAT_TIMEOUT_MS  = 300000;    // 拼接超时（5 分钟），过期则丢弃未收齐的分片
 constexpr int          MAX_CONCAT_MESSAGES = 5;         // 同时进行中的拼接短信数量上限
 
+// ---------- SMS 处理任务配置 ----------
+
+// PDU 队列深度：SIM 模组 CNMI=2,2 模式下 AT URIs 每条短信最多缓冲 5 段，
+// 队列容量 16 足以应对突发的多条长短信
+constexpr int  SMS_QUEUE_DEPTH      = 16;
+// sms_proc 任务栈：包含 pdulib decode（gsm7bit[160]），多次 LOG（char msg[256] 各一帧），
+// 以及 assembleConcatSms/Push::send 等，分配 8192 字节留足余量
+constexpr int  SMS_PROC_TASK_STACK  = 8192;
+constexpr int  SMS_PROC_TASK_PRIO   = 2;
+
+// PDU 字符串最大长度（SIM 模组单条 PDU hex 串最长 ~340 字符）
+constexpr int  PDU_MAX_LEN          = 400;
+
 // 单个拼接分片
 struct SmsPart {
   bool   valid;    // 是否已收到

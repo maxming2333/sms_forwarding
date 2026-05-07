@@ -3,6 +3,10 @@
 #include <ArduinoJson.h>
 #include "config/config.h"
 
+// 两次 HTTP 请求之间的最小冷却时间，防止密集请求导致 ESP32 TLS/TCP 栈资源
+// （mbedtls 堆、lwIP socket）尚未充分释放就开始下一次 TLS 握手。
+constexpr unsigned long HTTP_COOLDOWN_MS = 500;
+
 // 各推送渠道的具体发送实现。
 // 约定：`renderedBody` 是用户在配置中自定义的请求体经模板渲染后的最终内容；
 //   - 非空：直接作为 HTTP 请求体发送，覆盖渠道默认 payload；

@@ -12,6 +12,9 @@ constexpr int          SIM_CMD_QUEUE_SIZE        = 16;
 constexpr uint32_t     SIM_READER_TASK_STACK     = 4096;
 // Reader Task 优先级（高于普通 loop，避免长 HTTP 处理时阻塞 SIM URC）
 constexpr UBaseType_t  SIM_READER_TASK_PRIORITY  = 3;
+constexpr size_t        SIM_RESP_BUF_SIZE          = 256;
+constexpr size_t        SIM_LINE_BUF_MAX           = 512;
+constexpr unsigned long SIM_TIMEOUT_DRAIN_QUIET_MS = 300;
 
 // 单条 AT 命令上下文（调用方栈上分配，仅入队指针；同步信号量在槽内创建）
 struct SimCmdSlot {

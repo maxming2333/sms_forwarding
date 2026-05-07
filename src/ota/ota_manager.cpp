@@ -16,7 +16,6 @@ static String                  g_currentVer = "";
 static String                  g_latestVer  = "";
 static volatile bool           g_inProgress = false;
 static unsigned long           g_lastCheckMs = 0;  // 版本检查防抖时间戳
-static constexpr unsigned long OTA_CHECK_DEBOUNCE_MS = 30000;  // 同一会话内至多每 30s 检查一次
 
 static esp_ota_handle_t        g_otaHandle  = 0;
 static const esp_partition_t*  g_otaPart    = nullptr;
