@@ -8,8 +8,9 @@
 #include "controllers/wifi.h"
 #include "controllers/blacklist.h"
 #include "controllers/ota.h"
+#include "controllers/logs.h"
 #include "config/config.h"
-#include "logger.h"
+#include "../logger/logger.h"
 #include <LittleFS.h>
 
 // Auth whitelist: routes that require NO authentication
@@ -54,6 +55,8 @@ void HttpServer::setup(AsyncWebServer& server) {
   server.on("/api/config/detail",  HTTP_GET,  configController);
   server.on("/api/status",  HTTP_GET,  statusController);
   server.on("/api/health",  HTTP_GET,  healthController);
+  server.on("/api/logs",    HTTP_GET,    logsController);
+  server.on("/api/logs",    HTTP_DELETE, logsDeleteController);
   server.on("/api/soc",     HTTP_GET,  socController);
 
   // WiFi configuration API

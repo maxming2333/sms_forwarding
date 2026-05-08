@@ -4,7 +4,7 @@
 #include <esp_task_wdt.h>
 #include <esp_wifi.h>
 #include "config/config.h"
-#include "logger.h"
+#include "../logger/logger.h"
 
 static WiFiMode s_mode = WIFI_MODE_UNINITIALIZED;
 

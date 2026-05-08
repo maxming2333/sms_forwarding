@@ -2,7 +2,7 @@
 #include "common/nvs_helper.h"
 #include <Preferences.h>
 #include <ArduinoJson.h>
-#include "logger.h"
+#include "../logger/logger.h"
 #include <time.h>
 
 static constexpr char kNvsSmsConfig[] = "sms_config";

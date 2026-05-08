@@ -1,7 +1,7 @@
 #include "sms.h"
 #include "config/config.h"
 #include "push/push.h"
-#include "logger.h"
+#include "../logger/logger.h"
 #include "phone_utils.h"
 #include "sim/sim_dispatcher.h"
 #include <pdulib.h>

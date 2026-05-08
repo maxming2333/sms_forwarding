@@ -6,7 +6,7 @@
 #include <WiFiClientSecure.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include "logger.h"
+#include "../logger/logger.h"
 
 // ── 内部静态状态 ─────────────────────────────────────────────────
 static volatile OtaState       g_state     = OtaState::IDLE;

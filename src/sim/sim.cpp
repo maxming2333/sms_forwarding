@@ -2,7 +2,7 @@
 #include "sim_dispatcher.h"
 #include "call/call.h"
 #include "sms/sms.h"
-#include "logger.h"
+#include "../logger/logger.h"
 #include "config/config.h"
 #include "push/push.h"
 #include "time/time_sync.h"

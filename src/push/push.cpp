@@ -7,7 +7,7 @@
 #include "sim/sim.h"
 #include "sim/sim_dispatcher.h"
 #include "wifi/wifi_manager.h"
-#include "logger.h"
+#include "../logger/logger.h"
 #include <WiFi.h>
 #include <time.h>
 

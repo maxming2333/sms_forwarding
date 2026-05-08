@@ -5,7 +5,7 @@
 #include <esp_task_wdt.h>
 
 #include "wifi/wifi_manager.h"
-#include "logger.h"
+#include "logger/logger.h"
 #include "config/config.h"
 #include "sim/sim.h"
 #include "call/call.h"
@@ -127,6 +127,10 @@ void setup() {
     LOG("HTTP", "LittleFS 挂载失败，HTML 页面不可用");
   } else {
     LOG("HTTP", "LittleFS 挂载成功");
+    // 不写入文件的模块（仍输出到串口和内存缓冲）；如需全量记录传 nullptr。
+    // 可用模块名：Push / PushQ / Retry / SMS / SIM / Call / WiFi / HTTP / OTA / BLE / Time / Cfg
+    static const char* kLogFileSkip[] = { nullptr };
+    Logger::enableFile(kLogFileSkip);
   }
   esp_task_wdt_reset();
 

@@ -1,6 +1,6 @@
 #include "coredump.h"
 #include "common/nvs_helper.h"
-#include "logger.h"
+#include "../logger/logger.h"
 #include "ota/ota_manager.h"
 #include <esp_system.h>
 #include <sys/time.h>

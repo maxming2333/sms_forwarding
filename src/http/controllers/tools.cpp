@@ -2,7 +2,7 @@
 #include "config/config.h"
 #include "http/body_accumulator.h"
 #include "http/json_response.h"
-#include "logger.h"
+#include "../../logger/logger.h"
 #include "coredump/coredump.h"
 #include "sms/sms.h"
 #include "sim/sim_dispatcher.h"

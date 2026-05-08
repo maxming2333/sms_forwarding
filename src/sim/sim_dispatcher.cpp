@@ -1,6 +1,6 @@
 #include "sim_dispatcher.h"
 #include <Arduino.h>
-#include "logger.h"
+#include "../logger/logger.h"
 
 // ---------- 文件级私有状态与辅助函数（匿名命名空间） ----------
 

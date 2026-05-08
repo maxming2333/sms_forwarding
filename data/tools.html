@@ -522,6 +522,20 @@
       </div>
 
       <div class="section">
+        <div class="section-title">📋 日志管理</div>
+        <div class="btn-group">
+          <button type="button" onclick="openLogs()" style="background: #009688">
+            📄 打开日志
+          </button>
+          <button type="button" id="clearLogsBtn" onclick="clearLogs()" style="background: #f44336">
+            🗑️ 清除日志
+          </button>
+        </div>
+        <div class="hint">打开日志将在新标签页展示设备日志文件内容</div>
+        <div class="result-box" id="logsResult"></div>
+      </div>
+
+      <div class="section">
         <div class="section-title">🖥️ 设备管理</div>
         <div class="form-group">
           <button
@@ -1093,6 +1107,37 @@
             }
           })
           .catch(function (e) {
+            result.className = "result-box result-error";
+            result.textContent = "❌ 请求失败: " + e.message;
+          });
+      }
+
+      function openLogs() {
+        window.open("/api/logs", "_blank");
+      }
+
+      function clearLogs() {
+        var btn = document.getElementById("clearLogsBtn");
+        var result = document.getElementById("logsResult");
+        if (!confirm("确定要清除所有日志记录吗？")) return;
+        btn.disabled = true;
+        result.className = "result-box result-loading";
+        result.style.display = "block";
+        result.textContent = "正在清除...";
+        fetch("/api/logs", { method: "DELETE" })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            btn.disabled = false;
+            if (d.ok) {
+              result.className = "result-box result-success";
+              result.textContent = "✅ 日志已清除";
+            } else {
+              result.className = "result-box result-error";
+              result.textContent = "❌ 清除失败";
+            }
+          })
+          .catch(function (e) {
+            btn.disabled = false;
             result.className = "result-box result-error";
             result.textContent = "❌ 请求失败: " + e.message;
           });

@@ -3,7 +3,7 @@
 // EspBluFi App 每次连接必须先完成 DH 协商后才会发送 SSID/密码，
 // 若 negotiate_data_handler 为 nullptr 则协商无响应，App 永远卡在 loading。
 #include "blufi_security.h"
-#include "logger.h"
+#include "../logger/logger.h"
 #include <string.h>
 #include <stdlib.h>
 #include <mbedtls/dhm.h>
