@@ -11,22 +11,28 @@
 #include <WiFi.h>
 #include <time.h>
 
-// 过滤控制字符（0x00-0x1F，保留 \t \n \r），防止 ArduinoJson 序列化出非法 JSON
+// 将控制字符（0x00-0x1F，保留 \t \n \r \b \f）替换为 \uXXXX 字面量，
+// 防止 ArduinoJson 将原始控制字节写入 JSON（ArduinoJson 只转义 " \ \b \f \n \r \t）。
+// 注意：\uXXXX 经 ArduinoJson 再序列化后 \ 会被转义为 \\，
+// 最终 JSON 含 \\uXXXX，Go json.Unmarshal 解码为字面文本 "\uXXXX"——合法 JSON，不会解析失败。
 static String sanitizeText(const String& s) {
   String out; out.reserve(s.length());
   for (unsigned int i = 0; i < s.length(); i++) {
     unsigned char c = (unsigned char)s.charAt(i);
-    if (c < 0x20 && c != '\t' && c != '\n' && c != '\r') continue;
-    out += (char)c;
+    if (c < 0x20 && c != '\t' && c != '\n' && c != '\r' && c != '\b' && c != '\f') {
+      char buf[7];
+      snprintf(buf, sizeof(buf), "\\u%04X", c);
+      out += buf;
+    } else {
+      out += (char)c;
+    }
   }
   return out;
 }
 
 // 内部辅助：按通道配置分发单次推送（不含跳过判断）
 // ctx 用于渲染 key1/key2 占位符
-static bool _sendOneChannel(const PushChannel& ch, const MessageContext& ctx,
-                             const String& sender, const String& message,
-                             const String& timestamp, const String& renderedBody) {
+static bool _sendOneChannel(const PushChannel& ch, const MessageContext& ctx, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
   // 在通道副本中渲染 key1/key2（不修改原通道配置）
   PushChannel rendered = ch;
   rendered.key1 = MsgContext::render(ch.key1, ctx);

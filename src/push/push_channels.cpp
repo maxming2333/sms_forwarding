@@ -11,22 +11,16 @@
 
 static String urlEncode(const String& str) {
   String encoded;
-  char c, code0, code1;
   for (unsigned int i = 0; i < str.length(); i++) {
-    c = str.charAt(i);
+    unsigned char c = (unsigned char)str.charAt(i);
     if (c == ' ') {
       encoded += '+';
-    } else if (isalnum(c)) {
-      encoded += c;
+    } else if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+      encoded += (char)c;
     } else {
-      code1 = (c & 0xf) + '0';
-      if ((c & 0xf) > 9) code1 = (c & 0xf) - 10 + 'A';
-      c = (c >> 4) & 0xf;
-      code0 = c + '0';
-      if (c > 9) code0 = c - 10 + 'A';
-      encoded += '%';
-      encoded += code0;
-      encoded += code1;
+      char buf[4];
+      snprintf(buf, sizeof(buf), "%%%02X", c);
+      encoded += buf;
     }
   }
   return encoded;
@@ -172,8 +166,7 @@ bool PushChannels::sendDingtalk(const PushChannel& ch, const String& sender, con
   beginHttpClient(http, tlsClient, webhookUrl);
   http.addHeader("Content-Type", "application/json");
 
-  String content = renderedBody.length() > 0 ? renderedBody
-                 : ("📱短信通知\n发送者: " + sender + "\n内容: " + message + "\n时间: " + timestamp);
+  String content = renderedBody.length() > 0 ? renderedBody : ("📱短信通知\n发送者: " + sender + "\n内容: " + message + "\n时间: " + timestamp);
 
   JsonDocument doc;
   doc["msgtype"] = "text";
@@ -202,8 +195,7 @@ bool PushChannels::sendPushPlus(const PushChannel& ch, const String& sender, con
     }
   }
 
-  String content = renderedBody.length() > 0 ? renderedBody
-                 : ("<b>发送者:</b> " + sender + "<br><b>时间:</b> " + timestamp + "<br><b>内容:</b><br>" + message);
+  String content = renderedBody.length() > 0 ? renderedBody : ("<b>发送者:</b> " + sender + "<br><b>时间:</b> " + timestamp + "<br><b>内容:</b><br>" + message);
 
   JsonDocument doc;
   doc["token"]   = ch.key1;
@@ -225,8 +217,7 @@ bool PushChannels::sendServerChan(const PushChannel& ch, const String& sender, c
   beginHttpClient(http, tlsClient, url);
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
 
-  String desp = renderedBody.length() > 0 ? renderedBody
-              : ("**发送者:** " + sender + "\n\n**时间:** " + timestamp + "\n\n**内容:**\n\n" + message);
+  String desp = renderedBody.length() > 0 ? renderedBody : ("**发送者:** " + sender + "\n\n**时间:** " + timestamp + "\n\n**内容:**\n\n" + message);
   String postData = "title=" + urlEncode("短信来自: " + sender);
   postData += "&desp=" + urlEncode(desp);
 
@@ -262,8 +253,7 @@ bool PushChannels::sendFeishu(const PushChannel& ch, const String& sender, const
     doc["sign"]      = computeHmacSha256Base64(ch.key1, String(ts) + "\n" + ch.key1);
   }
 
-  String text = renderedBody.length() > 0 ? renderedBody
-              : ("📱短信通知\n发送者: " + sender + "\n内容: " + message + "\n时间: " + timestamp);
+  String text = renderedBody.length() > 0 ? renderedBody : ("📱短信通知\n发送者: " + sender + "\n内容: " + message + "\n时间: " + timestamp);
   doc["msg_type"]        = "text";
   doc["content"]["text"] = text;
 
@@ -306,8 +296,7 @@ bool PushChannels::sendTelegram(const PushChannel& ch, const String& sender, con
   beginHttpClient(http, tlsClient, url);
   http.addHeader("Content-Type", "application/json");
 
-  String text = renderedBody.length() > 0 ? renderedBody
-              : ("📱短信通知\n发送者: " + sender + "\n内容: " + message + "\n时间: " + timestamp);
+  String text = renderedBody.length() > 0 ? renderedBody : ("📱短信通知\n发送者: " + sender + "\n内容: " + message + "\n时间: " + timestamp);
   JsonDocument doc;
   doc["chat_id"] = ch.key1;
   doc["text"]    = text;
@@ -335,8 +324,7 @@ bool PushChannels::sendWechatWork(const PushChannel& ch, const String& sender, c
   beginHttpClient(http, tlsClient, webhookUrl);
   http.addHeader("Content-Type", "application/json");
 
-  String content = renderedBody.length() > 0 ? renderedBody
-                 : ("📱短信通知\n发件人: " + sender + "\n内容: " + message + "\n时间: " + timestamp);
+  String content = renderedBody.length() > 0 ? renderedBody : ("📱短信通知\n发件人: " + sender + "\n内容: " + message + "\n时间: " + timestamp);
   JsonDocument doc;
   doc["msgtype"] = "text";
   doc["text"]["content"] = content;
