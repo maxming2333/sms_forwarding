@@ -13,10 +13,9 @@ static bool         s_fileEnabled = false;
 static const char*  s_fileSkip[Logger::FILE_SKIP_MAX] = {};
 static int          s_fileSkipCount = 0;
 
-// 去重状态：相邻两条 module+msg 完全一致时，用新时间戳原地替换而不追加
+// 去重状态：相邻两条 module+msg 完全一致时直接丢弃，只保留串口输出
 static char   s_lastModule[16]  = {};
 static char   s_lastMsg[256]    = {};
-static size_t s_lastFileOffset  = 0;  // 上一条写入文件的起始字节位置
 
 // ---------- 文件轮转 ----------
 
@@ -56,9 +55,8 @@ void Logger::enableFile(const char* const* fileSkipModules) {
 
 void Logger::clearFile() {
   LittleFS.remove(FILE_PATH);
-  s_lastFileOffset = 0;
-  s_lastModule[0]  = '\0';
-  s_lastMsg[0]     = '\0';
+  s_lastModule[0] = '\0';
+  s_lastMsg[0]    = '\0';
 }
 
 void Logger::print(const char* module, const char* fmt, ...) {
@@ -88,43 +86,26 @@ void Logger::print(const char* module, const char* fmt, ...) {
   strncpy(s_lastMsg, msg, sizeof(s_lastMsg) - 1);
   s_lastMsg[sizeof(s_lastMsg) - 1] = '\0';
 
+  // isDup：串口已打印，内存缓冲和文件均丢弃
+  if (isDup) return;
+
   // 写内存环形缓冲
-  if (isDup) {
-    // 原地替换上一槽（仅更新时间戳）
-    int prevIdx = (s_head - 1 + BUF_LINES) % BUF_LINES;
-    snprintf(s_lines[prevIdx], LINE_LEN, "[%s] [%-*s] %s", ts, Logger::MODULE_PAD, module, msg);
-  } else {
-    snprintf(s_lines[s_head], LINE_LEN, "[%s] [%-*s] %s", ts, Logger::MODULE_PAD, module, msg);
-    s_head = (s_head + 1) % BUF_LINES;
-    if (s_count < BUF_LINES) s_count++;
-  }
+  snprintf(s_lines[s_head], LINE_LEN, "[%s] [%-*s] %s", ts, Logger::MODULE_PAD, module, msg);
+  s_head = (s_head + 1) % BUF_LINES;
+  if (s_count < BUF_LINES) s_count++;
 
   // 写 LittleFS 持久化文件
   if (s_fileEnabled) {
-    // 模块过滤：在黑名单中的模块不写文件
     bool skip = false;
     for (int i = 0; i < s_fileSkipCount; i++) {
       if (strcmp(module, s_fileSkip[i]) == 0) { skip = true; break; }
     }
-
     if (!skip) {
-      if (isDup && LittleFS.exists(FILE_PATH)) {
-        // 原地替换文件最后一行（seek 到上一行起始位置，覆写后截断）
-        File f = LittleFS.open(FILE_PATH, "r+");
-        if (f) {
-          f.seek(s_lastFileOffset);
-          f.printf("[%s] [%-*s] %s\n", ts, Logger::MODULE_PAD, module, msg);
-          f.truncate(f.position());
-          f.close();
-        }
-      } else {
-        rotateIfNeeded();
-        File f = LittleFS.open(FILE_PATH, "a");
-        if (f) {
-          s_lastFileOffset = f.size();  // 追加前的文件末尾 = 新行起始位置
-          f.printf("[%s] [%-*s] %s\n", ts, Logger::MODULE_PAD, module, msg);
-          f.close();
-        }
+      rotateIfNeeded();
+      File f = LittleFS.open(FILE_PATH, "a");
+      if (f) {
+        f.printf("[%s] [%-*s] %s\n", ts, Logger::MODULE_PAD, module, msg);
+        f.close();
       }
     }
   }
