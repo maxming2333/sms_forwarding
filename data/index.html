@@ -192,6 +192,7 @@
 
       .push-channel-header label {
         margin: 0;
+        margin-left: 10px;
         font-weight: bold;
       }
 
@@ -230,6 +231,16 @@
         text-align: center;
         padding: 30px;
         color: #888;
+      }
+
+      .form-retry {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .form-retry label {
+        margin: 0;
       }
     </style>
   </head>
@@ -897,7 +908,7 @@
           "</textarea>" +
           '<div class="hint">不填则使用默认格式；可使用上方表格中的占位符</div>' +
           "</div>" +
-          '<div class="form-group">' +
+          '<div class="form-group form-retry">' +
           '<input type="checkbox" id="push' +
           i +
           'retry" name="push' +
