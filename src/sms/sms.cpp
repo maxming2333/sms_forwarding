@@ -111,6 +111,18 @@ static int findOrCreateConcatSlot(int refNumber, const char* sender, int totalPa
 // forward declaration
 static void processSmsContent(const char* sender, const char* text, const char* timestamp, const MsgTypeInfo& msgType);
 
+// 过滤 pdulib 可能遗留的 UCS-2 对齐填充字节等控制字符（0x00-0x1F，保留 \t \n \r）
+// 根因：带空 UDH（UDHL=0）的 SMS 在 UCS-2 内容前需 1 字节对齐，部分运营商填充 0x01（非标）
+static String sanitizeSmsText(const char* text) {
+  String out;
+  for (const char* p = text; *p; p++) {
+    unsigned char c = (unsigned char)*p;
+    if (c < 0x20 && c != '\t' && c != '\n' && c != '\r') continue;
+    out += (char)c;
+  }
+  return out;
+}
+
 // ---------- multipart SMS helpers ----------
 
 static bool hasMultibyte(const char* s) {
@@ -767,7 +779,7 @@ static void processPduLine(const String& line) {
     if (partIndex >= 0 && partIndex < MAX_CONCAT_PARTS) {
       if (!concatBuffer[slot].parts[partIndex].valid) {
         concatBuffer[slot].parts[partIndex].valid = true;
-        concatBuffer[slot].parts[partIndex].text  = String(pdu.getText());
+        concatBuffer[slot].parts[partIndex].text  = sanitizeSmsText(pdu.getText());
         concatBuffer[slot].receivedParts++;
         if (concatBuffer[slot].receivedParts == 1) {
           concatBuffer[slot].timestamp = String(pdu.getTimeStamp());
@@ -787,7 +799,8 @@ static void processPduLine(const String& line) {
       clearConcatSlot(slot);
     }
   } else {
-    processSmsContent(pdu.getSender(), pdu.getText(), pdu.getTimeStamp(), MsgTypeInfo(MSG_TYPE_SMS, classLabel));
+    String smsText = sanitizeSmsText(pdu.getText());
+    processSmsContent(pdu.getSender(), smsText.c_str(), pdu.getTimeStamp(), MsgTypeInfo(MSG_TYPE_SMS, classLabel));
   }
 }
 
