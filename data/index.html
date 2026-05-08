@@ -1114,7 +1114,7 @@
         document.getElementById("dataTrafficEnabled").checked =
           !!data.dataTraffic;
         document.getElementById("logFileEnabled").checked =
-          data.logFileEnabled !== false;
+          !!data.logFileEnabled;
 
         var channels = data.pushChannels || [];
         g_pushChannels = [];

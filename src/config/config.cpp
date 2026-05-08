@@ -57,7 +57,7 @@ void ConfigStore::load() {
 
   config.simNotifyEnabled = prefs.isKey("simNotify") ? prefs.getBool("simNotify", false) : false;
   config.dataTraffic      = prefs.getBool("dataTraffic", false);
-  config.logFileEnabled   = prefs.isKey("logFile") ? prefs.getBool("logFile", true) : true;
+  config.logFileEnabled   = prefs.isKey("logFile") ? prefs.getBool("logFile", false) : false;
 
   if (prefs.isKey("wifiCount")) {
     config.wifiCount = constrain((int)prefs.getUChar("wifiCount", 0), 0, MAX_WIFI_ENTRIES);
