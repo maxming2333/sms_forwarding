@@ -51,7 +51,7 @@ void wifiPostController(AsyncWebServerRequest* request, uint8_t* data, size_t le
   config.wifiCount = count;
 
   ConfigStore::save();
-  LOG("HTTP", "WiFi配置已更新，共 %d 条", config.wifiCount);
+  LOG("HWIFI", "WiFi配置已更新，共 %d 条", config.wifiCount);
 
   JsonResp::okWithReboot(request, "WiFi配置已保存，设备将在2秒后自动重启");
 }

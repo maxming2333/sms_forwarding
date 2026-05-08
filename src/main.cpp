@@ -63,10 +63,10 @@ static void delayWithWdt(unsigned long ms) {
 
 static void modemPowerCycle() {
   pinMode(MODEM_EN_PIN, OUTPUT);
-  LOG("SIM", "EN 拉低：关闭模组");
+  LOG("MAIN", "EN 拉低：关闭模组");
   digitalWrite(MODEM_EN_PIN, LOW);
   delayWithWdt(1200);
-  LOG("SIM", "EN 拉高：开启模组");
+  LOG("MAIN", "EN 拉高：开启模组");
   digitalWrite(MODEM_EN_PIN, HIGH);
   delayWithWdt(6000);
 }
@@ -112,21 +112,21 @@ void setup() {
   if (WifiManager::mode() == WIFI_MODE_STA_CONNECTED) {
     TimeSync::syncNTP();
     if (TimeSync::isSynced()) {
-      LOG("WiFi", "NTP时间同步成功，UTC: %ld", (long)time(nullptr));
+      LOG("MAIN", "NTP时间同步成功，UTC: %ld", (long)time(nullptr));
     } else {
-      LOG("WiFi", "NTP时间同步失败，将在SIM就绪后通过NITZ同步");
+      LOG("MAIN", "NTP时间同步失败，将在SIM就绪后通过NITZ同步");
     }
   } else {
-    LOG("WiFi", "AP模式，跳过NTP同步。请访问 %s 配置WiFi", WifiManager::deviceUrl().c_str());
+    LOG("MAIN", "AP模式，跳过NTP同步。请访问 %s 配置WiFi", WifiManager::deviceUrl().c_str());
   }
 
   // LittleFS — formatOnFail=true 保证首次烧录或分区损坏时自动格式化
   // 格式化操作可能耗时数秒，需在前后喂狗
   esp_task_wdt_reset();
   if (!LittleFS.begin(true)) {
-    LOG("HTTP", "LittleFS 挂载失败，HTML 页面不可用");
+    LOG("MAIN", "LittleFS 挂载失败，HTML 页面不可用");
   } else {
-    LOG("HTTP", "LittleFS 挂载成功");
+    LOG("MAIN", "LittleFS 挂载成功");
     // 不写入文件的模块（仍输出到串口和内存缓冲）；如需全量记录传 nullptr。
     // 可用模块名：Push / PushQ / Retry / SMS / SIM / Call / WiFi / HTTP / OTA / BLE / Time / Cfg
     static const char* kLogFileSkip[] = { nullptr };
@@ -152,9 +152,9 @@ void loop() {
     if (millis() - lastUrlPrint >= 3000) {
       lastUrlPrint = millis();
       if (WifiManager::mode() == WIFI_MODE_AP_ACTIVE) {
-        LOG("HTTP", "⚠️ 当前号码: %s，请访问 %s 配置WiFi，或通过 BluFi BLE 配网（设备名: %s）", Sim::phoneNum().c_str(), WifiManager::deviceUrl().c_str(), WifiManager::deviceName().c_str());
+        LOG("MAIN", "⚠️ 当前号码: %s，请访问 %s 配置WiFi，或通过 BluFi BLE 配网（设备名: %s）", Sim::phoneNum().c_str(), WifiManager::deviceUrl().c_str(), WifiManager::deviceName().c_str());
       } else {
-        LOG("HTTP", "⚠️ 当前号码: %s，请访问 %s 进行配置", Sim::phoneNum().c_str(), WifiManager::deviceUrl().c_str());
+        LOG("MAIN", "⚠️ 当前号码: %s，请访问 %s 进行配置", Sim::phoneNum().c_str(), WifiManager::deviceUrl().c_str());
       }
     }
   }
@@ -169,14 +169,14 @@ void loop() {
       s_cachedCrashVersion = Coredump::crashVersion();
       s_bootPushPending = true;
       s_bootPushAfterMs = millis() + BOOT_PUSH_DELAY_MS;
-      LOG("Push", "WiFi初始化完成，%lu ms 后触发开机推送", BOOT_PUSH_DELAY_MS);
+      LOG("MAIN", "WiFi初始化完成，%lu ms 后触发开机推送", BOOT_PUSH_DELAY_MS);
     }
   }
 
   // 开机推送：WiFi 初始化后 3 秒延迟触发，不依赖 WiFi 连接状态
   if (s_bootPushPending && millis() >= s_bootPushAfterMs) {
     s_bootPushPending = false;
-    LOG("Push", "触发开机推送...");
+    LOG("MAIN", "触发开机推送...");
     {
       String bootMsg = String("🚀 设备已启动") +
         "\n🌐 设备地址: " + WifiManager::deviceUrl() +

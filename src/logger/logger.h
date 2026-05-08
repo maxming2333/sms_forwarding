@@ -7,11 +7,15 @@ public:
   static constexpr int    BUF_LINES       = 200;
   static constexpr int    LINE_LEN        = 160;
 
+  // 模块名对齐宽度（printf %-*s 的宽度值）
+  static constexpr int    MODULE_PAD      = 8;
+
   // LittleFS 持久化参数
   // LittleFS 分区 256KB，HTML 文件共 ~104KB，实际可用约 130KB。
   static constexpr size_t FILE_MAX_BYTES  = 96 * 1024;   // 文件最大 96KB（< LittleFS 可用量）
   static constexpr size_t FILE_KEEP_BYTES = 48 * 1024;   // 溢出时保留末尾 48KB（必须 < FILE_MAX_BYTES）
   static constexpr const char* FILE_PATH  = "/log.txt";
+  static constexpr int    FILE_SKIP_MAX   = 16;          // 模块黑名单最大条目数
 
   // 在 LittleFS.begin() 成功后调用，启用持久化写入。
   // fileSkipModules: 不写入文件的模块名列表（仍写串口和内存缓冲），以 nullptr 结尾。

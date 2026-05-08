@@ -20,7 +20,7 @@ RebootSchedule rebootSchedule;
 void ConfigStore::load() {
   NvsScope p(kNvsSmsConfig, false);
   if (!p.ok()) {
-    LOG("Config", "NVS 打开失败");
+    LOG("CFG", "NVS 打开失败");
     return;
   }
   auto& prefs = p.p();
@@ -52,7 +52,7 @@ void ConfigStore::load() {
     config.pushChannels[0].url     = oldHttpUrl;
     config.pushChannels[0].type    = prefs.getUChar("barkMode", 0) != 0 ? PUSH_TYPE_BARK : PUSH_TYPE_POST_JSON;
     config.pushChannels[0].name    = "迁移通道";
-    LOG("Config", "已迁移旧HTTP配置到推送通道1");
+    LOG("CFG", "已迁移旧HTTP配置到推送通道1");
   }
 
   config.simNotifyEnabled = prefs.isKey("simNotify") ? prefs.getBool("simNotify", false) : false;
@@ -73,7 +73,7 @@ void ConfigStore::load() {
       config.wifiList[0].ssid     = legacySsid;
       config.wifiList[0].password = legacyPass;
       config.wifiCount = 1;
-      LOG("Config", "已迁移旧单WiFi配置到wifiList[0]");
+      LOG("CFG", "已迁移旧单WiFi配置到wifiList[0]");
     } else {
       config.wifiCount = 0;
     }
@@ -87,7 +87,7 @@ void ConfigStore::load() {
     config.blacklist[i] = prefs.getString(("bl" + String(i)).c_str(), "");
   }
 
-  LOG("Config", "配置已加载");
+  LOG("CFG", "配置已加载");
 }
 
 void ConfigStore::save() {
@@ -145,7 +145,7 @@ void ConfigStore::save() {
     prefs.putString(("bl" + String(i)).c_str(), trimStr(config.blacklist[i]));
   }
 
-  LOG("Config", "配置已保存");
+  LOG("CFG", "配置已保存");
 }
 
 void ConfigStore::loadReboot(RebootSchedule& sched) {
@@ -185,7 +185,7 @@ void ConfigStore::rebootTick() {
 
   if (rebootSchedule.mode == 1) {
     if ((millis() / 3600000UL) >= rebootSchedule.intervalH) {
-      LOG("Config", "定时重启触发（间隔模式）");
+      LOG("CFG", "定时重启触发（间隔模式）");
       ESP.restart();
     }
     return;
@@ -196,7 +196,7 @@ void ConfigStore::rebootTick() {
     static unsigned long lastWarn = 0;
     if (millis() - lastWarn >= 60000) {
       lastWarn = millis();
-      LOG("Config", "定时重启：NTP未同步，跳过检查");
+      LOG("CFG", "定时重启：NTP未同步，跳过检查");
     }
     return;
   }
@@ -218,7 +218,7 @@ void ConfigStore::rebootTick() {
 
   if (now >= triggerEpoch && now < triggerEpoch + 60 && lastRebootEpoch < (uint32_t)triggerEpoch) {
     Nvs::putUInt(kNvsRebootCfg, "rb_last_epoch", (uint32_t)now);
-    LOG("Config", "定时重启触发（每日模式）");
+    LOG("CFG", "定时重启触发（每日模式）");
     ESP.restart();
   }
 }
@@ -242,7 +242,7 @@ void ConfigStore::reset() {
   rebootSchedule.hour      = 3;
   rebootSchedule.intervalH = 24;
 
-  LOG("Config", "配置已重置为出厂默认值");
+  LOG("CFG", "配置已重置为出厂默认值");
 }
 
 bool ConfigStore::isPushChannelValid(const PushChannel& ch) {
@@ -430,5 +430,5 @@ void ConfigStore::insertWifiFirst(const String& ssid, const String& pass) {
   config.wifiList[0].password = p;
   config.wifiCount = newCount;
   save();
-  LOG("Config", "WiFi已插入首位: %s，列表共 %d 条", s.c_str(), config.wifiCount);
+  LOG("CFG", "WiFi已插入首位: %s，列表共 %d 条", s.c_str(), config.wifiCount);
 }

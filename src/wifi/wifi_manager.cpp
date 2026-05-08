@@ -100,7 +100,7 @@ static void enterAPMode() {
   s_initDone       = true;
   s_reconnState    = RECONNECT_IDLE;       // 清除可能残留的扫描等待状态
   s_apRescanNextMs = millis() + WIFI_AP_RESCAN_INTERVAL_MS;  // 30s 后首次后台扫描
-  LOG("WiFi", "AP模式启动，SSID: %s，IP: 192.168.4.1", kApSsid);
+  LOG("WIFI", "AP模式启动，SSID: %s，IP: 192.168.4.1", kApSsid);
   Blufi::init();
 }
 
@@ -122,7 +122,7 @@ void WifiManager::init() {
   esp_task_wdt_reset();
 
   if (config.wifiCount == 0) {
-    LOG("WiFi", "未配置任何WiFi，直接进入AP模式");
+    LOG("WIFI", "未配置任何WiFi，直接进入AP模式");
     enterAPMode();
     return;
   }
@@ -136,7 +136,7 @@ void WifiManager::init() {
   int initOrder[MAX_WIFI_ENTRIES] = {};
   int initMatchCount = buildSortedWifiOrder(initOrder, config.wifiCount);
   WiFi.scanDelete();  // 释放阻塞扫描结果内存（与 AP tick 路径保持一致）
-  LOG("WiFi", "扫描完成，%d/%d 条配置SSID当前可见，将优先连接", initMatchCount, config.wifiCount);
+  LOG("WIFI", "扫描完成，%d/%d 条配置SSID当前可见，将优先连接", initMatchCount, config.wifiCount);
 
   for (int oi = 0; oi < config.wifiCount; oi++) {
     int w = initOrder[oi];
@@ -144,7 +144,7 @@ void WifiManager::init() {
 
     const char* ssid = config.wifiList[w].ssid.c_str();
     const char* pass = config.wifiList[w].password.c_str();
-    LOG("WiFi", "尝试第 %d/%d 条WiFi: %s", w + 1, config.wifiCount, ssid);
+    LOG("WIFI", "尝试第 %d/%d 条WiFi: %s", w + 1, config.wifiCount, ssid);
 
     for (int attempt = 1; attempt <= WIFI_RECONNECT_ATTEMPTS_PER_SSID; attempt++) {
       WiFi.begin(ssid, pass, 0, nullptr, true);
@@ -155,14 +155,14 @@ void WifiManager::init() {
           s_everConnected = true;
           s_initDone      = true;
           WiFi.setSleep(false);  // 关闭 WiFi Modem Sleep，避免 TCP SYN 丢包导致 3 秒连接延迟
-          LOG("WiFi", "第 %d/%d 条WiFi，第 %d/%d 次连接成功，IP: %s", w + 1, config.wifiCount, attempt, WIFI_RECONNECT_ATTEMPTS_PER_SSID, WiFi.localIP().toString().c_str());
+          LOG("WIFI", "第 %d/%d 条WiFi，第 %d/%d 次连接成功，IP: %s", w + 1, config.wifiCount, attempt, WIFI_RECONNECT_ATTEMPTS_PER_SSID, WiFi.localIP().toString().c_str());
           return;
         }
         delay(100);
         esp_task_wdt_reset();
       }
 
-      LOG("WiFi", "第 %d/%d 条WiFi，第 %d/%d 次连接超时", w + 1, config.wifiCount, attempt, WIFI_RECONNECT_ATTEMPTS_PER_SSID);
+      LOG("WIFI", "第 %d/%d 条WiFi，第 %d/%d 次连接超时", w + 1, config.wifiCount, attempt, WIFI_RECONNECT_ATTEMPTS_PER_SSID);
       // disconnect(false)：只断开 AP 连接，保持 STA 模式开启
       // 避免 disconnect(true) 关掉 STA 后 begin() 的 enableSTA(true) 触发
       // ESP_ERR_WIFI_STATE（0x3014）"STA enable failed!" 的驱动状态竞争
@@ -172,7 +172,7 @@ void WifiManager::init() {
     }
   }
 
-  LOG("WiFi", "所有WiFi条目全部失败，切换到AP模式");
+  LOG("WIFI", "所有WiFi条目全部失败，切换到AP模式");
   enterAPMode();
 }
 
@@ -185,7 +185,7 @@ void WifiManager::tick() {
       if (n == WIFI_SCAN_RUNNING) return;  // 扫描进行中，下次 tick 继续轮询
       if (n < 0) {
         // 扫描失败（WIFI_SCAN_FAILED），重新调度，避免状态机永久卡在 SCAN_WAIT
-        LOG("WiFi", "AP模式后台扫描失败，%lums后重试", WIFI_AP_RESCAN_INTERVAL_MS);
+        LOG("WIFI", "AP模式后台扫描失败，%lums后重试", WIFI_AP_RESCAN_INTERVAL_MS);
         s_reconnState    = RECONNECT_IDLE;
         s_apRescanNextMs = millis() + WIFI_AP_RESCAN_INTERVAL_MS;
         return;
@@ -198,7 +198,7 @@ void WifiManager::tick() {
       WiFi.scanDelete();  // 释放扫描结果内存，避免内存泄漏
 
       if (matchCount > 0) {
-        LOG("WiFi", "AP模式后台扫描发现 %d 条匹配SSID，切换到重连状态机", matchCount);
+        LOG("WIFI", "AP模式后台扫描发现 %d 条匹配SSID，切换到重连状态机", matchCount);
         // 关闭 AP，切到 STA 模式，交由非阻塞重连状态机处理
         WiFi.softAPdisconnect(true);
         delay(100);
@@ -211,7 +211,7 @@ void WifiManager::tick() {
         s_reconnAttempt = 0;
         s_lastAttemptMs = 0;  // 使 WAITING 立即触发首次尝试
       } else {
-        LOG("WiFi", "AP模式后台扫描无匹配SSID，%lums后重试", WIFI_AP_RESCAN_INTERVAL_MS);
+        LOG("WIFI", "AP模式后台扫描无匹配SSID，%lums后重试", WIFI_AP_RESCAN_INTERVAL_MS);
         s_reconnState    = RECONNECT_IDLE;
         s_apRescanNextMs = millis() + WIFI_AP_RESCAN_INTERVAL_MS;
       }
@@ -220,7 +220,7 @@ void WifiManager::tick() {
 
     // 定时触发异步扫描
     if (millis() >= s_apRescanNextMs) {
-      LOG("WiFi", "AP模式启动后台WiFi扫描...");
+      LOG("WIFI", "AP模式启动后台WiFi扫描...");
       WiFi.scanNetworks(true);  // 异步，不阻塞 loop()
       s_reconnState = RECONNECT_AP_SCAN_WAIT;
     }
@@ -236,7 +236,7 @@ void WifiManager::tick() {
         s_reconnWIdx    = 0;
         s_reconnAttempt = 0;
         s_lastAttemptMs = 0;  // 使 WAITING 立即触发首次尝试
-        LOG("WiFi", "检测到WiFi断线，启动重连轮询");
+        LOG("WIFI", "检测到WiFi断线，启动重连轮询");
       }
       break;
 
@@ -250,7 +250,7 @@ void WifiManager::tick() {
           // 所有 SSID 已尝试完一轮
           if (s_reconnFromAP) {
             // 来自 AP 恢复的重连，全部失败则退回 AP 模式，等待下一轮后台扫描
-            LOG("WiFi", "AP恢复重连全部失败，重新进入AP模式等待下次扫描");
+            LOG("WIFI", "AP恢复重连全部失败，重新进入AP模式等待下次扫描");
             s_reconnFromAP = false;
             enterAPMode();
             return;
@@ -258,11 +258,11 @@ void WifiManager::tick() {
           // 普通 STA 断线重连，重置后继续无限循环
           s_reconnWIdx    = 0;
           s_reconnAttempt = 0;
-          LOG("WiFi", "所有 SSID 重连均失败，重置循环重试");
+          LOG("WIFI", "所有 SSID 重连均失败，重置循环重试");
         }
         const char* ssid = config.wifiList[s_reconnWIdx].ssid.c_str();
         const char* pass = config.wifiList[s_reconnWIdx].password.c_str();
-        LOG("WiFi", "重连尝试 SSID: %s，第 %d/%d 次", ssid, s_reconnAttempt + 1, WIFI_RECONNECT_ATTEMPTS_PER_SSID);
+        LOG("WIFI", "重连尝试 SSID: %s，第 %d/%d 次", ssid, s_reconnAttempt + 1, WIFI_RECONNECT_ATTEMPTS_PER_SSID);
         WiFi.disconnect(true);
         delay(300);
         WiFi.begin(ssid, pass, 0, nullptr, true);
@@ -277,10 +277,10 @@ void WifiManager::tick() {
         s_reconnState   = RECONNECT_IDLE;
         s_reconnFromAP  = false;  // AP 恢复成功后清除标志，防止后续普通断线走 AP 回退路径
         WiFi.setSleep(false);  // 重连后重新关闭 Modem Sleep
-        LOG("WiFi", "重连成功，SSID: %s，IP: %s", config.wifiList[s_reconnWIdx].ssid.c_str(), WiFi.localIP().toString().c_str());
+        LOG("WIFI", "重连成功，SSID: %s，IP: %s", config.wifiList[s_reconnWIdx].ssid.c_str(), WiFi.localIP().toString().c_str());
         if (s_reconnectCb) s_reconnectCb();
       } else if (millis() - s_lastAttemptMs >= WIFI_RECONNECT_INTERVAL_MS) {
-        LOG("WiFi", "重连超时，SSID: %s，第 %d/%d 次", config.wifiList[s_reconnWIdx].ssid.c_str(), s_reconnAttempt + 1, WIFI_RECONNECT_ATTEMPTS_PER_SSID);
+        LOG("WIFI", "重连超时，SSID: %s，第 %d/%d 次", config.wifiList[s_reconnWIdx].ssid.c_str(), s_reconnAttempt + 1, WIFI_RECONNECT_ATTEMPTS_PER_SSID);
         WiFi.disconnect(true);
         s_reconnAttempt++;
         if (s_reconnAttempt >= WIFI_RECONNECT_ATTEMPTS_PER_SSID) {

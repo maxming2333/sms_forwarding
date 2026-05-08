@@ -46,7 +46,7 @@ void sendSmsController(AsyncWebServerRequest* request) {
   if (phone.length() == 0)   { sendJsonResponse(request, false, "错误：请输入目标号码"); return; }
   if (content.length() == 0) { sendJsonResponse(request, false, "错误：请输入短信内容"); return; }
 
-  LOG("HTTP", "网页端发送短信请求，目标: %s", phone.c_str());
+  LOG("HTOOLS", "网页端发送短信请求，目标: %s", phone.c_str());
 
   bool success = Sms::sendPDU(phone.c_str(), content.c_str());
 
@@ -54,7 +54,7 @@ void sendSmsController(AsyncWebServerRequest* request) {
 }
 
 void pingController(AsyncWebServerRequest* request) {
-  LOG("HTTP", "网页端发起Ping请求");
+  LOG("HTOOLS", "网页端发起Ping请求");
 
   sendATCommand("AT+CGACT=1,1", 10000);
   delay(500);
@@ -314,9 +314,9 @@ void atCommandController(AsyncWebServerRequest* request) {
   String cmd = request->hasParam("cmd") ? request->getParam("cmd")->value() : "";
   if (cmd.length() == 0) { sendJsonResponse(request, false, "错误：指令不能为空"); return; }
 
-  LOG("HTTP", "网页端发送AT指令: %s", cmd.c_str());
+  LOG("HTOOLS", "网页端发送AT指令: %s", cmd.c_str());
   String resp = sendATCommand(cmd.c_str(), 5000);
-  LOG("HTTP", "模组响应: %s", resp.c_str());
+  LOG("HTOOLS", "模组响应: %s", resp.c_str());
 
   if (resp.length() > 0) {
     sendJsonResponse(request, true,  resp);
@@ -390,7 +390,7 @@ void rebootController(AsyncWebServerRequest* request, uint8_t* data,
   }
 
   g_resetToken = "";
-  LOG("HTTP", "网页端触发设备重启");
+  LOG("HTOOLS", "网页端触发设备重启");
 
   JsonResp::okWithReboot(request, "设备将在2秒后重启");
 }
@@ -410,7 +410,7 @@ void exportCoreDumpController(AsyncWebServerRequest* request) {
     return;
   }
 
-  LOG("HTTP", "导出 coredump: used=%u bytes, part=%s", static_cast<unsigned>(usedSize), part->label);
+  LOG("HTOOLS", "导出 coredump: used=%u bytes, part=%s", static_cast<unsigned>(usedSize), part->label);
 
   AsyncWebServerResponse* resp = request->beginChunkedResponse(
     "application/octet-stream",

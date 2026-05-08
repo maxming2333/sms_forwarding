@@ -72,12 +72,12 @@ void saveController(AsyncWebServerRequest* request) {
   ConfigStore::save();
   HttpServer::refreshAuthCredentials();
 
-  LOG("HTTP", "配置已保存，发送成功响应");
+  LOG("HSAVE", "配置已保存，发送成功响应");
 
   JsonResp::ok(request, "配置保存成功");
 
   if (ConfigStore::isValid()) {
-    LOG("HTTP", "配置已更新，设备地址: %s", WifiManager::deviceUrl().c_str());
+    LOG("HSAVE", "配置已更新，设备地址: %s", WifiManager::deviceUrl().c_str());
   }
 }
 
@@ -94,7 +94,7 @@ void saveRebootController(AsyncWebServerRequest* request) {
 
   ConfigStore::saveReboot(rebootSchedule);
 
-  LOG("HTTP", "定时重启配置已保存");
+  LOG("HSAVE", "定时重启配置已保存");
 
   JsonResp::ok(request, "定时重启配置保存成功");
 }

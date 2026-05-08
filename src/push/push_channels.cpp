@@ -65,6 +65,20 @@ static void endHttpClient(HTTPClient& http) {
   s_lastHttpEndMs = millis();
 }
 
+
+// 记录响应结果；失败时额外打印首 120 字节响应 body，便于定位原因。
+static bool IsResponseSuccessful(HTTPClient& http, int code) {
+  if (code >= 200 && code < 300) {
+    LOG("PUSHCH", "响应码: %d 成功", code);
+  } else {
+    String resp = http.getString();
+    if (resp.length() > 120) resp = resp.substring(0, 120) + "...";
+    LOG("PUSHCH", "响应码: %d 失败，响应体: %s", code, resp.c_str());
+  }
+  endHttpClient(http);
+  return code >= 200 && code < 300;
+}
+
 static void beginHttpClient(HTTPClient& http, WiFiClientSecure& tlsClient, const String& url) {
   // 若距上次请求完成不足 HTTP_COOLDOWN_MS，稍作等待，
   // 给 TCP/TLS 栈（mbedtls 上下文、lwIP socket）足够的资源释放时间。
@@ -101,11 +115,9 @@ bool PushChannels::sendPostJson(const PushChannel& ch, const String& sender, con
     serializeJson(doc, body);
   }
 
-  LOG("Push", "POST JSON to %s: %s", ch.url.c_str(), body.c_str());
+  LOG("PUSHCH", "POST JSON to %s: %s", ch.url.c_str(), body.c_str());
   int code = http.POST(body);
-  LOG("Push", "响应码: %d", code);
-  endHttpClient(http);
-  return code >= 200 && code < 300;
+  return IsResponseSuccessful(http, code);
 }
 
 bool PushChannels::sendBark(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
@@ -122,11 +134,9 @@ bool PushChannels::sendBark(const PushChannel& ch, const String& sender, const S
   String body;
   serializeJson(doc, body);
 
-  LOG("Push", "Bark to %s: %s", ch.url.c_str(), body.c_str());
+  LOG("PUSHCH", "Bark to %s: %s", ch.url.c_str(), body.c_str());
   int code = http.POST(body);
-  LOG("Push", "响应码: %d", code);
-  endHttpClient(http);
-  return code >= 200 && code < 300;
+  return IsResponseSuccessful(http, code);
 }
 
 bool PushChannels::sendGet(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
@@ -139,12 +149,10 @@ bool PushChannels::sendGet(const PushChannel& ch, const String& sender, const St
   HTTPClient http;
   WiFiClientSecure tlsClient;
 
-  LOG("Push", "GET %s", url.c_str());
+  LOG("PUSHCH", "GET %s", url.c_str());
   beginHttpClient(http, tlsClient, url);
   int code = http.GET();
-  LOG("Push", "响应码: %d", code);
-  endHttpClient(http);
-  return code >= 200 && code < 300;
+  return IsResponseSuccessful(http, code);
 }
 
 bool PushChannels::sendDingtalk(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
@@ -173,11 +181,9 @@ bool PushChannels::sendDingtalk(const PushChannel& ch, const String& sender, con
   String body;
   serializeJson(doc, body);
 
-  LOG("Push", "DingTalk: %s", body.c_str());
+  LOG("PUSHCH", "DingTalk: %s", body.c_str());
   int code = http.POST(body);
-  LOG("Push", "响应码: %d", code);
-  endHttpClient(http);
-  return code >= 200 && code < 300;
+  return IsResponseSuccessful(http, code);
 }
 
 bool PushChannels::sendPushPlus(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
@@ -192,7 +198,7 @@ bool PushChannels::sendPushPlus(const PushChannel& ch, const String& sender, con
     if (ch.key2 == "wechat" || ch.key2 == "extension" || ch.key2 == "app") {
       channelValue = ch.key2;
     } else {
-      LOG("Push", "Invalid PushPlus channel '%s'. Using default 'wechat'.", ch.key2.c_str());
+      LOG("PUSHCH", "Invalid PushPlus channel '%s'. Using default 'wechat'.", ch.key2.c_str());
     }
   }
 
@@ -207,11 +213,9 @@ bool PushChannels::sendPushPlus(const PushChannel& ch, const String& sender, con
   String body;
   serializeJson(doc, body);
 
-  LOG("Push", "PushPlus: %s", body.c_str());
+  LOG("PUSHCH", "PushPlus: %s", body.c_str());
   int code = http.POST(body);
-  LOG("Push", "响应码: %d", code);
-  endHttpClient(http);
-  return code >= 200 && code < 300;
+  return IsResponseSuccessful(http, code);
 }
 
 bool PushChannels::sendServerChan(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
@@ -226,11 +230,9 @@ bool PushChannels::sendServerChan(const PushChannel& ch, const String& sender, c
   String postData = "title=" + urlEncode("短信来自: " + sender);
   postData += "&desp=" + urlEncode(desp);
 
-  LOG("Push", "Server酱: %s", postData.c_str());
+  LOG("PUSHCH", "Server酱: %s", postData.c_str());
   int code = http.POST(postData);
-  LOG("Push", "响应码: %d", code);
-  endHttpClient(http);
-  return code >= 200 && code < 300;
+  return IsResponseSuccessful(http, code);
 }
 
 bool PushChannels::sendCustom(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
@@ -241,11 +243,9 @@ bool PushChannels::sendCustom(const PushChannel& ch, const String& sender, const
   http.addHeader("Content-Type", "application/json");
 
   String body = renderedBody;  // 可为空（FR-008: 留空时发送空 POST body）
-  LOG("Push", "POST请求: %s，body长度: %d", ch.url.c_str(), body.length());
+  LOG("PUSHCH", "POST请求: %s，body长度: %d", ch.url.c_str(), body.length());
   int code = http.POST(body);
-  LOG("Push", "响应码: %d", code);
-  endHttpClient(http);
-  return code >= 200 && code < 300;
+  return IsResponseSuccessful(http, code);
 }
 
 bool PushChannels::sendFeishu(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
@@ -270,11 +270,9 @@ bool PushChannels::sendFeishu(const PushChannel& ch, const String& sender, const
   String body;
   serializeJson(doc, body);
 
-  LOG("Push", "飞书: %s", body.c_str());
+  LOG("PUSHCH", "飞书: %s", body.c_str());
   int code = http.POST(body);
-  LOG("Push", "响应码: %d", code);
-  endHttpClient(http);
-  return code >= 200 && code < 300;
+  return IsResponseSuccessful(http, code);
 }
 
 bool PushChannels::sendGotify(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
@@ -294,11 +292,9 @@ bool PushChannels::sendGotify(const PushChannel& ch, const String& sender, const
   String body;
   serializeJson(doc, body);
 
-  LOG("Push", "Gotify: %s", body.c_str());
+  LOG("PUSHCH", "Gotify: %s", body.c_str());
   int code = http.POST(body);
-  LOG("Push", "响应码: %d", code);
-  endHttpClient(http);
-  return code >= 200 && code < 300;
+  return IsResponseSuccessful(http, code);
 }
 
 bool PushChannels::sendTelegram(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
@@ -318,11 +314,9 @@ bool PushChannels::sendTelegram(const PushChannel& ch, const String& sender, con
   String body;
   serializeJson(doc, body);
 
-  LOG("Push", "Telegram: %s", body.c_str());
+  LOG("PUSHCH", "Telegram: %s", body.c_str());
   int code = http.POST(body);
-  LOG("Push", "响应码: %d", code);
-  endHttpClient(http);
-  return code >= 200 && code < 300;
+  return IsResponseSuccessful(http, code);
 }
 
 bool PushChannels::sendWechatWork(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
@@ -349,15 +343,9 @@ bool PushChannels::sendWechatWork(const PushChannel& ch, const String& sender, c
   String body;
   serializeJson(doc, body);
 
-  LOG("Push", "企业微信: %s", body.c_str());
+  LOG("PUSHCH", "企业微信: %s", body.c_str());
   int code = http.POST(body);
-  LOG("Push", "响应码: %d", code);
-  endHttpClient(http);
-  if (code < 200 || code >= 300) {
-    LOG("Push", "企业微信推送失败，状态码: %d", code);
-    return false;
-  }
-  return true;
+  return IsResponseSuccessful(http, code);
 }
 
 bool PushChannels::sendSmsPush(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
@@ -368,8 +356,8 @@ bool PushChannels::sendSmsPush(const PushChannel& ch, const String& sender, cons
     content = "[转发]发件人: " + sender + "\n内容: " + message;
   }
   // Sms::sendPDU 内部自动处理长短信拆分，无需手动截断
-  LOG("Push", "SMS备份推送到: %s", ch.url.c_str());
+  LOG("PUSHCH", "SMS备份推送到: %s", ch.url.c_str());
   bool ok = Sms::sendPDU(ch.url.c_str(), content.c_str());
-  if (!ok) LOG("Push", "SMS备份推送失败");
+  if (!ok) LOG("PUSHCH", "SMS备份推送失败");
   return ok;
 }

@@ -28,17 +28,17 @@ void PushQueue::enqueue(const String& sender, const String& message,
   if (uxQueueSpacesAvailable(s_queue) == 0) {
     PushQueueItem* old = nullptr;
     if (xQueueReceive(s_queue, &old, 0) == pdTRUE && old) {
-      LOG("PushQ", "队列已满，丢弃最旧消息 from=%s", old->sender.c_str());
+      LOG("PUSHQ", "队列已满，丢弃最旧消息 from=%s", old->sender.c_str());
       delete old;
     }
   }
 
   PushQueueItem* item = new PushQueueItem{sender, message, timestamp, msgType};
   if (xQueueSend(s_queue, &item, 0) != pdTRUE) {
-    LOG("PushQ", "入队失败，丢弃消息 from=%s", sender.c_str());
+    LOG("PUSHQ", "入队失败，丢弃消息 from=%s", sender.c_str());
     delete item;
   } else {
-    LOG("PushQ", "入队成功，当前队列深度: %u", uxQueueMessagesWaiting(s_queue));
+    LOG("PUSHQ", "入队成功，当前队列深度: %u", uxQueueMessagesWaiting(s_queue));
   }
 }
 
@@ -52,7 +52,7 @@ void PushQueue::tick() {
   if (xQueueReceive(s_queue, &item, 0) != pdTRUE || !item) return;
 
   UBaseType_t remaining = uxQueueMessagesWaiting(s_queue);
-  LOG("PushQ", "出队执行推送，队列剩余: %u 条", remaining);
+  LOG("PUSHQ", "出队执行推送，队列剩余: %u 条", remaining);
   Push::executeChain(item->sender, item->message, item->timestamp, item->msgType);
   s_lastSendMs = millis();
   delete item;

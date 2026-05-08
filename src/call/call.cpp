@@ -15,13 +15,13 @@ unsigned long          Call::s_clccAttemptMs    = 0;
 
 void Call::dispatch(const String& callerNum) {
   if (phoneMatchesBlacklist(callerNum)) {
-    LOG("Call", "黑名单拦截来电，号码: %s", callerNum.c_str());
+    LOG("CALL", "黑名单拦截来电，号码: %s", callerNum.c_str());
     return;
   }
   String ts = TimeSync::dateStr();
   Push::send(callerNum, "来电号码: " + callerNum + "\n时间: " + ts, ts, MsgTypeInfo(MSG_TYPE_CALL));
   s_lastNotifyMs = millis();
-  LOG("Call", "来电通知已发送，号码: %s", callerNum.c_str());
+  LOG("CALL", "来电通知已发送，号码: %s", callerNum.c_str());
 }
 
 void Call::init() {
@@ -36,7 +36,7 @@ void Call::init() {
 
 void Call::handleRING() {
   if (millis() - s_lastNotifyMs < DEDUP_MS) {
-    LOG("Call", "防抖：忽略 RING（%lu ms 内已通知）", DEDUP_MS);
+    LOG("CALL", "防抖：忽略 RING（%lu ms 内已通知）", DEDUP_MS);
     return;
   }
   s_pending         = true;
@@ -45,7 +45,7 @@ void Call::handleRING() {
   s_clipWaitUntilMs = millis() + CLIP_WAIT_MS;
   s_clccAttempted   = false;
   s_clccAttemptMs   = millis() + CLCC_DELAY_MS;
-  LOG("Call", "RING 检测，等待 +CLIP（%lu ms），%lu ms 后主动查询 AT+CLCC", CLIP_WAIT_MS, CLCC_DELAY_MS);
+  LOG("CALL", "RING 检测，等待 +CLIP（%lu ms），%lu ms 后主动查询 AT+CLCC", CLIP_WAIT_MS, CLCC_DELAY_MS);
 }
 
 void Call::handleCLIP(const String& line) {
@@ -103,19 +103,19 @@ void Call::tick() {
 
   if (!s_clccAttempted && now >= s_clccAttemptMs) {
     s_clccAttempted = true;
-    LOG("Call", "主动发送 AT+CLCC 查询来电号码");
+    LOG("CALL", "主动发送 AT+CLCC 查询来电号码");
     String resp;
     SimDispatcher::sendCommand("AT+CLCC", 3000, &resp, true);
-    LOG("Call", "AT+CLCC 响应: %s", resp.c_str());
+    LOG("CALL", "AT+CLCC 响应: %s", resp.c_str());
     String num = parseCLCC(resp);
     if (num.length() > 0) {
-      LOG("Call", "AT+CLCC 成功获取来电号码: %s", num.c_str());
+      LOG("CALL", "AT+CLCC 成功获取来电号码: %s", num.c_str());
       s_callerNumber = num;
       s_pending = false;
       dispatch(s_callerNumber);
       return;
     }
-    LOG("Call", "AT+CLCC 未获取到号码（可能已挂断或格式不符），继续等待 +CLIP");
+    LOG("CALL", "AT+CLCC 未获取到号码（可能已挂断或格式不符），继续等待 +CLIP");
   }
 
   if (now >= s_clipWaitUntilMs) {

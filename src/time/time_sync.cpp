@@ -10,14 +10,14 @@ unsigned long TimeSync::s_simRetryNext = 0;
 void TimeSync::init() {
   setenv("TZ", "UTC-8", 1);
   tzset();
-  LOG("Time", "时间模块已初始化（默认时区 UTC+8）");
+  LOG("TIME", "时间模块已初始化（默认时区 UTC+8）");
 }
 
 void TimeSync::syncFromSIM() {
   String resp;
   bool ok = SimDispatcher::sendCommand("AT+CCLK?", 3000, &resp, false);
   if (!ok && resp.indexOf("+CCLK:") < 0) {
-    LOG("Time", "AT+CCLK? 无响应，跳过 SIM 时间同步");
+    LOG("TIME", "AT+CCLK? 无响应，跳过 SIM 时间同步");
     return;
   }
 
@@ -25,7 +25,7 @@ void TimeSync::syncFromSIM() {
   int q1 = resp.indexOf('"', cclkIdx);
   int q2 = resp.indexOf('"', q1 + 1);
   if (q1 < 0 || q2 <= q1) {
-    LOG("Time", "CCLK 格式解析失败");
+    LOG("TIME", "CCLK 格式解析失败");
     return;
   }
   String ts = resp.substring(q1 + 1, q2);
@@ -33,17 +33,17 @@ void TimeSync::syncFromSIM() {
   int yy, mo, dd, hh, mi, ss, tz = 0;
   int parsed = sscanf(ts.c_str(), "%d/%d/%d,%d:%d:%d%d", &yy, &mo, &dd, &hh, &mi, &ss, &tz);
   if (parsed < 6) {
-    LOG("Time", "CCLK 时间字段解析失败，原始: %s", ts.c_str());
+    LOG("TIME", "CCLK 时间字段解析失败，原始: %s", ts.c_str());
     return;
   }
 
   if (yy < 0 || yy > 99 || mo < 1 || mo > 12 || dd < 1 || dd > 31 ||
       hh < 0 || hh > 23 || mi < 0 || mi > 59 || ss < 0 || ss > 60) {
-    LOG("Time", "CCLK 时间字段越界，原始: %s", ts.c_str());
+    LOG("TIME", "CCLK 时间字段越界，原始: %s", ts.c_str());
     return;
   }
   if (tz < -56 || tz > 56) {
-    LOG("Time", "CCLK 时区字段越界 (%d)，按 0 处理", tz);
+    LOG("TIME", "CCLK 时区字段越界 (%d)，按 0 处理", tz);
     tz = 0;
   }
 
@@ -68,7 +68,7 @@ void TimeSync::syncFromSIM() {
   tzset();
 
   s_synced = true;
-  LOG("Time", "SIM时间同步成功: %s, 时区偏移: %d (UTC%+d)", ts.c_str(), tz, tzHours);
+  LOG("TIME", "SIM时间同步成功: %s, 时区偏移: %d (UTC%+d)", ts.c_str(), tz, tzHours);
 }
 
 void TimeSync::syncNTP() {
@@ -83,9 +83,9 @@ void TimeSync::syncNTP() {
   }
   if (time(nullptr) >= 1000000) {
     s_synced = true;
-    LOG("Time", "NTP时间同步成功，UTC+8: %ld", (long)time(nullptr));
+    LOG("TIME", "NTP时间同步成功，UTC+8: %ld", (long)time(nullptr));
   } else {
-    LOG("Time", "NTP时间同步超时");
+    LOG("TIME", "NTP时间同步超时");
   }
 }
 
@@ -98,11 +98,11 @@ void TimeSync::tick() {
   if (millis() < s_simRetryNext) {
     return;
   }
-  LOG("Time", "SIM 时间重试...");
+  LOG("TIME", "SIM 时间重试...");
   syncFromSIM();
   if (time(nullptr) >= 1000000) {
     s_synced = true;
-    LOG("Time", "SIM 时间重试成功，停止重试");
+    LOG("TIME", "SIM 时间重试成功，停止重试");
   } else {
     s_simRetryNext = millis() + 10000;
   }

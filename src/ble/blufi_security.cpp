@@ -43,7 +43,7 @@ void blufi_dh_negotiate_data_handler(uint8_t *data, int len,
     // 解析手机发来的 DH 参数（ServerDHParams 格式：P + G + Phone 公钥，各含 2 字节长度前缀）
     const uint8_t *end = data + len;
     if (mbedtls_dhm_read_params(&s_dhm, &data, end) != 0) {
-        LOG("BluFi", "DH read_params 失败");
+        LOG("BLUFIS", "DH read_params 失败");
         return;
     }
 
@@ -52,7 +52,7 @@ void blufi_dh_negotiate_data_handler(uint8_t *data, int len,
     if (!selfPub) return;
 
     if (mbedtls_dhm_make_public(&s_dhm, (int)keyLen, selfPub, keyLen, s_hwRandom, nullptr) != 0) {
-        LOG("BluFi", "DH make_public 失败");
+        LOG("BLUFIS", "DH make_public 失败");
         free(selfPub);
         return;
     }
@@ -60,7 +60,7 @@ void blufi_dh_negotiate_data_handler(uint8_t *data, int len,
     uint8_t shareKey[SHARE_KEY_LEN];
     size_t  shareLen = SHARE_KEY_LEN;
     if (mbedtls_dhm_calc_secret(&s_dhm, shareKey, SHARE_KEY_LEN, &shareLen, s_hwRandom, nullptr) != 0) {
-        LOG("BluFi", "DH calc_secret 失败");
+        LOG("BLUFIS", "DH calc_secret 失败");
         free(selfPub);
         return;
     }
@@ -73,7 +73,7 @@ void blufi_dh_negotiate_data_handler(uint8_t *data, int len,
     *output_data = selfPub;
     *output_len  = (int)keyLen;
     *need_free   = true;
-    LOG("BluFi", "DH 协商完成，AES 密钥已就绪");
+    LOG("BLUFIS", "DH 协商完成，AES 密钥已就绪");
 }
 
 int blufi_aes_encrypt(uint8_t iv8, uint8_t *crypt_data, int crypt_len) {

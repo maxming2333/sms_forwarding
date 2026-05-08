@@ -57,7 +57,7 @@ void Coredump::init() {
   if (time(nullptr) < 1577836800L && s_rtcLastKnownTime > 1577836800L) {
     struct timeval tv = { s_rtcLastKnownTime, 0 };
     settimeofday(&tv, nullptr);
-    LOG("Time", "从 NVS 恢复系统时间（近似）: %ld", (long)s_rtcLastKnownTime);
+    LOG("CORE", "从 NVS 恢复系统时间（近似）: %ld", (long)s_rtcLastKnownTime);
   }
 
   long savedCrash = Nvs::getLong("sms_config", "cdCrashTs", 0);
@@ -74,7 +74,7 @@ void Coredump::init() {
       p->putLong("cdCrashTs", (long)s_crashTime);
       p->putString("cdCrashVer", s_crashVersion);
     }
-    LOG("Coredump", "检测到 panic 重启，崩溃时间: %ld，版本: %s", (long)s_crashTime, s_crashVersion.c_str());
+    LOG("CORE", "检测到 panic 重启，崩溃时间: %ld，版本: %s", (long)s_crashTime, s_crashVersion.c_str());
   }
 }
 

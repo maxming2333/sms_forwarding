@@ -36,7 +36,7 @@ static bool _sendOneChannel(const PushChannel& ch, const MessageContext& ctx,
     case PUSH_TYPE_WECHAT_WORK: ok = PushChannels::sendWechatWork(rendered, sender, message, timestamp, renderedBody);   break;
     case PUSH_TYPE_SMS:         ok = PushChannels::sendSmsPush(rendered, sender, message, timestamp, renderedBody);      break;
     default:
-      LOG("Push", "未知推送类型: %d", (int)rendered.type);
+      LOG("PUSH", "未知推送类型: %d", (int)rendered.type);
       break;
   }
   return ok;
@@ -104,12 +104,12 @@ void Push::executeChain(const String& sender, const String& message, const Strin
   // T015: 推送前检查本机号码是否就绪
   // 入队整条推送链，待号码就绪后重新完整执行，确保故障转移策略正确生效
   if (!Sim::isNumberReady()) {
-    LOG("Push", "本机号码未知，完整推送链入队等待号码就绪");
+    LOG("PUSH", "本机号码未知，完整推送链入队等待号码就绪");
     PushRetry::enqueue(PUSH_RETRY_FULL_CHAIN, sender, message, timestamp, msgType, RetryReason::WAITING_NUMBER);
     return;
   }
 
-  LOG("Push", "=== 开始多通道推送 ===");
+  LOG("PUSH", "=== 开始多通道推送 ===");
 
   bool wifiOk = (WiFi.status() == WL_CONNECTED);
   bool anyAction = false;
@@ -128,18 +128,18 @@ void Push::executeChain(const String& sender, const String& message, const Strin
 
     // HTTP 类通道（type 1–11）在 WiFi 未连接时跳过
     if (ch.type >= PUSH_TYPE_POST_JSON && ch.type <= PUSH_TYPE_WECHAT_WORK && !wifiOk) {
-      LOG("Push", "WiFi未连接，跳过HTTP通道: %s", ch.name.c_str());
+      LOG("PUSH", "WiFi未连接，跳过HTTP通道: %s", ch.name.c_str());
       continue;
     }
 
     if (ch.type == PUSH_TYPE_SMS && msgType.type == MSG_TYPE_SIM) {
-      LOG("Push", "SIM事件跳过SMS通道: %s", ch.name.c_str());
+      LOG("PUSH", "SIM事件跳过SMS通道: %s", ch.name.c_str());
       continue;
     }
 
     anyAction = true;
     String name = ch.name.length() > 0 ? ch.name : ("通道" + String(ch.type));
-    LOG("Push", "发送到推送通道: %s", name.c_str());
+    LOG("PUSH", "发送到推送通道: %s", name.c_str());
 
     // 渲染自定义消息格式（非空时替换内置默认格式）
     ctx.channelName = ch.name;
@@ -150,11 +150,11 @@ void Push::executeChain(const String& sender, const String& message, const Strin
 
     if (config.pushStrategy == PUSH_STRATEGY_FAILOVER) {
       if (ok) {
-        LOG("Push", "故障转移模式：通道 %s 成功，停止", name.c_str());
+        LOG("PUSH", "故障转移模式：通道 %s 成功，停止", name.c_str());
         failoverChainDone = true;
         break;
       }
-      LOG("Push", "故障转移模式：通道 %s 失败，继续下一个", name.c_str());
+      LOG("PUSH", "故障转移模式：通道 %s 失败，继续下一个", name.c_str());
       // 暂存待重试索引，等整链确认全部失败后再统一入队
       if (ch.retryOnFail && failoverRetryCount < MAX_PUSH_CHANNELS) {
         failoverRetry[failoverRetryCount++] = i;
@@ -164,7 +164,7 @@ void Push::executeChain(const String& sender, const String& message, const Strin
       delay(100);
       if (!ok && ch.retryOnFail) {
         PushRetry::enqueue(i, sender, message, timestamp, msgType);
-        LOG("Push", "[Retry] 通道 %s 失败，已加入重试队列", name.c_str());
+        LOG("PUSH", "[Retry] 通道 %s 失败，已加入重试队列", name.c_str());
       }
     }
   }
@@ -174,13 +174,13 @@ void Push::executeChain(const String& sender, const String& message, const Strin
     for (int j = 0; j < failoverRetryCount; j++) {
       PushRetry::enqueue(failoverRetry[j], sender, message, timestamp, msgType);
       const String& rname = config.pushChannels[failoverRetry[j]].name;
-      LOG("Push", "[Retry] 故障转移链全部失败，通道 %s 加入重试队列", rname.c_str());
+      LOG("PUSH", "[Retry] 故障转移链全部失败，通道 %s 加入重试队列", rname.c_str());
     }
   }
 
   if (!anyAction) {
-    LOG("Push", "未配置任何有效推送通道或未满足前置条件，跳过推送");
+    LOG("PUSH", "未配置任何有效推送通道或未满足前置条件，跳过推送");
   }
 
-  LOG("Push", "=== 多通道推送完成 ===");
+  LOG("PUSH", "=== 多通道推送完成 ===");
 }

@@ -129,7 +129,7 @@ void simReaderTask(void*) {
                 if (s_activeCmd != nullptr) {
                     // T015: 有活跃指令时先检查是否为 URC 行
                     if (isUrcLine(line)) {
-                        LOG("SIM", "[URC-during-cmd] %s", line.c_str());
+                        LOG("SIMDSP", "[URC-during-cmd] %s", line.c_str());
                         routeURC(line);
                     } else {
                         appendResponseLine(s_activeCmd, line);
@@ -150,7 +150,7 @@ void simReaderTask(void*) {
             } else if (c != '\r') {
                 lineBuf += c;
                 if (lineBuf.length() > SIM_LINE_BUF_MAX) {
-                    LOG("SIM", "串口行超过 %u 字节，已丢弃", (unsigned)SIM_LINE_BUF_MAX);
+                    LOG("SIMDSP", "串口行超过 %u 字节，已丢弃", (unsigned)SIM_LINE_BUF_MAX);
                     lineBuf = "";
                     s_waitingPdu = false;
                 }
@@ -177,7 +177,7 @@ void simReaderTask(void*) {
         // 超时检测
         if (s_activeCmd != nullptr &&
             millis() - s_cmdStartMs > s_activeCmd->timeoutMs) {
-            LOG("SIM", "AT 指令超时: %s", s_activeCmd->cmd);
+            LOG("SIMDSP", "AT 指令超时: %s", s_activeCmd->cmd);
             s_activeCmd->isOk = false;
             xSemaphoreGive(s_activeCmd->doneSem);
             s_activeCmd = nullptr;
@@ -200,12 +200,12 @@ void SimDispatcher::registerUrcCallback(SimUrcCallback cb) {
 void SimDispatcher::start() {
     s_queue = xQueueCreate(SIM_CMD_QUEUE_SIZE, sizeof(SimCmdSlot*));
     if (s_queue == nullptr) {
-        LOG("SIM", "SimDispatcher::start: 队列创建失败");
+        LOG("SIMDSP", "SimDispatcher::start: 队列创建失败");
         return;
     }
     s_directTxnMutex = xSemaphoreCreateMutex();
     if (s_directTxnMutex == nullptr) {
-        LOG("SIM", "SimDispatcher::start: 直接事务互斥锁创建失败");
+        LOG("SIMDSP", "SimDispatcher::start: 直接事务互斥锁创建失败");
         vQueueDelete(s_queue);
         s_queue = nullptr;
         return;
@@ -223,7 +223,7 @@ bool SimDispatcher::sendCommand(const char* cmd, unsigned long timeoutMs,
     size_t cmdLen = strlen(cmd);
     if (cmdLen >= sizeof(slot.cmd)) {
         // AT 指令超长会被静默截断 → 模组返回 ERROR 难以排查；改为直接拒绝
-        LOG("SIM", "AT 指令超长（%u ≥ %u），拒绝执行: %.32s...",
+        LOG("SIMDSP", "AT 指令超长（%u ≥ %u），拒绝执行: %.32s...",
             (unsigned)cmdLen, (unsigned)sizeof(slot.cmd), cmd);
         return false;
     }
@@ -268,7 +268,7 @@ bool SimDispatcher::pauseReader(unsigned long timeoutMs) {
     if (s_task == nullptr) return true;
     if (s_directTxnMutex == nullptr) return false;
     if (xSemaphoreTake(s_directTxnMutex, pdMS_TO_TICKS(timeoutMs)) != pdTRUE) {
-        LOG("SIM", "等待直接串口事务锁超时");
+        LOG("SIMDSP", "等待直接串口事务锁超时");
         return false;
     }
     s_pauseRequested = true;
@@ -277,7 +277,7 @@ bool SimDispatcher::pauseReader(unsigned long timeoutMs) {
         if (millis() - start >= timeoutMs) {
             s_pauseRequested = false;
             xSemaphoreGive(s_directTxnMutex);
-            LOG("SIM", "等待 reader 暂停超时");
+            LOG("SIMDSP", "等待 reader 暂停超时");
             return false;
         }
         vTaskDelay(pdMS_TO_TICKS(5));

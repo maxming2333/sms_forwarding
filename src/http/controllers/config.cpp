@@ -80,7 +80,7 @@ void configExportController(AsyncWebServerRequest* request) {
   resp->print(body);
   request->send(resp);
 
-  LOG("HTTP", "配置已导出（struct格式），大小: %d 字节", body.length());
+  LOG("HCFG", "配置已导出（struct格式），大小: %d 字节", body.length());
 }
 
 // ── configImportController ────────────────────────────────────

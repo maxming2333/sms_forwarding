@@ -66,7 +66,7 @@ static void gapEventHandler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t
   esp_blufi_gap_event_handler(event, param);
   if (event == ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT) {
     esp_ble_gap_start_advertising(&s_blufiAdvParams);
-    LOG("BluFi", "BLE 广播已启动");
+    LOG("BLUFI", "BLE 广播已启动");
   }
 }
 
@@ -113,13 +113,13 @@ static void blufiEventCallback(esp_blufi_cb_event_t event, esp_blufi_cb_param_t*
       esp_ble_gap_stop_advertising();
       blufi_security_reset();
       s_provisioningDone = false;
-      LOG("BluFi", "BLE 已连接");
+      LOG("BLUFI", "BLE 已连接");
       break;
     }
     case ESP_BLUFI_EVENT_BLE_DISCONNECT: {
       if (s_provisioningDone) {
         // App 收到成功回包后主动断开，此时整个配网流程真正结束，再异步重启
-        LOG("BluFi", "BLE 已断开（配网完成），即将重启");
+        LOG("BLUFI", "BLE 已断开（配网完成），即将重启");
         xTaskCreate([](void*) {
             taskYIELD();  // 让 BTC 任务先跑完
             vTaskDelay(pdMS_TO_TICKS(500));
@@ -132,7 +132,7 @@ static void blufiEventCallback(esp_blufi_cb_event_t event, esp_blufi_cb_param_t*
         s_pendingSsid.clear();
         s_pendingPass.clear();
         startBlufiAdvertising();
-        LOG("BluFi", "BLE 已断开，重新开始广播");
+        LOG("BLUFI", "BLE 已断开，重新开始广播");
       }
       break;
     }
@@ -142,14 +142,14 @@ static void blufiEventCallback(esp_blufi_cb_event_t event, esp_blufi_cb_param_t*
       startBlufiAdvertising();
       // 配置 Scan Response：Manufacturer Data（Espressif ID + 自定义载荷）和设备名
       configureScanResponse();
-      LOG("BluFi", "BLE 广播配置已提交");
+      LOG("BLUFI", "BLE 广播配置已提交");
       break;
     }
     case ESP_BLUFI_EVENT_RECV_STA_SSID: {
       if (param->sta_ssid.ssid && param->sta_ssid.ssid_len > 0) {
         // ssid 不含 null 终止符，必须用带长度的构造函数
         s_pendingSsid = String((const char*)param->sta_ssid.ssid, param->sta_ssid.ssid_len);
-        LOG("BluFi", "收到 SSID: %s", s_pendingSsid.c_str());
+        LOG("BLUFI", "收到 SSID: %s", s_pendingSsid.c_str());
       }
       break;
     }
@@ -157,7 +157,7 @@ static void blufiEventCallback(esp_blufi_cb_event_t event, esp_blufi_cb_param_t*
       if (param->sta_passwd.passwd && param->sta_passwd.passwd_len > 0) {
         // passwd 同样不含 null 终止符
         s_pendingPass = String((const char*)param->sta_passwd.passwd, param->sta_passwd.passwd_len);
-        LOG("BluFi", "收到密码（已隐藏）");
+        LOG("BLUFI", "收到密码（已隐藏）");
       }
       break;
     }
@@ -175,7 +175,7 @@ static void blufiEventCallback(esp_blufi_cb_event_t event, esp_blufi_cb_param_t*
         esp_blufi_send_wifi_conn_report(WIFI_MODE_STA, ESP_BLUFI_STA_CONN_SUCCESS, 0, &info);
         s_pendingSsid.clear();
         s_pendingPass.clear();
-        LOG("BluFi", "配置已保存，回包成功，等待 App 断开 BLE");
+        LOG("BLUFI", "配置已保存，回包成功，等待 App 断开 BLE");
       }
       break;
     }
@@ -195,22 +195,22 @@ void Blufi::init() {
   esp_bt_controller_config_t btCfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
   esp_err_t err = esp_bt_controller_init(&btCfg);
   if (err != ESP_OK) {
-    LOG("BluFi", "BT 控制器初始化失败: %d", (int)err);
+    LOG("BLUFI", "BT 控制器初始化失败: %d", (int)err);
     return;
   }
   err = esp_bt_controller_enable(ESP_BT_MODE_BLE);
   if (err != ESP_OK) {
-    LOG("BluFi", "BT 控制器启用失败: %d", (int)err);
+    LOG("BLUFI", "BT 控制器启用失败: %d", (int)err);
     return;
   }
   err = esp_bluedroid_init();
   if (err != ESP_OK) {
-    LOG("BluFi", "Bluedroid 初始化失败: %d", (int)err);
+    LOG("BLUFI", "Bluedroid 初始化失败: %d", (int)err);
     return;
   }
   err = esp_bluedroid_enable();
   if (err != ESP_OK) {
-    LOG("BluFi", "Bluedroid 启用失败: %d", (int)err);
+    LOG("BLUFI", "Bluedroid 启用失败: %d", (int)err);
     return;
   }
 
@@ -225,7 +225,7 @@ void Blufi::init() {
   // 并在 ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT 时调用 esp_ble_gap_start_advertising()
   err = esp_ble_gap_register_callback(gapEventHandler);
   if (err != ESP_OK) {
-    LOG("BluFi", "GAP 回调注册失败: %d", (int)err);
+    LOG("BLUFI", "GAP 回调注册失败: %d", (int)err);
     return;
   }
 
@@ -239,7 +239,7 @@ void Blufi::init() {
   };
   err = esp_blufi_register_callbacks(&blufiCallbacks);
   if (err != ESP_OK) {
-    LOG("BluFi", "回调注册失败: %d", (int)err);
+    LOG("BLUFI", "回调注册失败: %d", (int)err);
     return;
   }
 
@@ -251,12 +251,12 @@ void Blufi::init() {
 
   err = esp_blufi_profile_init();
   if (err != ESP_OK) {
-    LOG("BluFi", "BluFi profile 初始化失败: %d", (int)err);
+    LOG("BLUFI", "BluFi profile 初始化失败: %d", (int)err);
     return;
   }
 
   s_blufiInitialized = true;
-  LOG("BluFi", "BluFi 已启动，设备名: %s", s_deviceName.c_str());
+  LOG("BLUFI", "BluFi 已启动，设备名: %s", s_deviceName.c_str());
 }
 
 void Blufi::deinit() {
@@ -270,5 +270,5 @@ void Blufi::deinit() {
   esp_bt_controller_disable();
   esp_bt_controller_deinit();
   s_blufiInitialized = false;
-  LOG("BluFi", "BluFi 已关闭");
+  LOG("BLUFI", "BluFi 已关闭");
 }

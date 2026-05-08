@@ -42,7 +42,7 @@ void blacklistPostController(AsyncWebServerRequest* request, uint8_t* data, size
     config.blacklist[config.blacklistCount++] = v.as<String>();
   }
   ConfigStore::save();
-  LOG("HTTP", "黑名单已更新，共 %d 条", config.blacklistCount);
+  LOG("HBLIST", "黑名单已更新，共 %d 条", config.blacklistCount);
 
   JsonResp::build(request, [](JsonObject root) {
     root["ok"]    = true;
