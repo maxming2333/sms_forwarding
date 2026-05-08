@@ -11,6 +11,17 @@
 #include <WiFi.h>
 #include <time.h>
 
+// 过滤控制字符（0x00-0x1F，保留 \t \n \r），防止 ArduinoJson 序列化出非法 JSON
+static String sanitizeText(const String& s) {
+  String out; out.reserve(s.length());
+  for (unsigned int i = 0; i < s.length(); i++) {
+    unsigned char c = (unsigned char)s.charAt(i);
+    if (c < 0x20 && c != '\t' && c != '\n' && c != '\r') continue;
+    out += (char)c;
+  }
+  return out;
+}
+
 // 内部辅助：按通道配置分发单次推送（不含跳过判断）
 // ctx 用于渲染 key1/key2 占位符
 static bool _sendOneChannel(const PushChannel& ch, const MessageContext& ctx,
@@ -92,8 +103,8 @@ bool Push::executeChannel(int channelIdx, const String& sender, const String& me
   MessageContext ctx = buildMsgContext(sender, message, timestamp, msgType.toString());
   ctx.channelName = ch.name;
   ctx.channelType    = pushTypeLabel(ch.type);
-  String renderedBody = ch.customBody.length() > 0 ? MsgContext::render(ch.customBody, ctx) : "";
-  return _sendOneChannel(ch, ctx, sender, message, timestamp, renderedBody);
+  String renderedBody = ch.customBody.length() > 0 ? sanitizeText(MsgContext::render(ch.customBody, ctx)) : "";
+  return _sendOneChannel(ch, ctx, sender, sanitizeText(message), timestamp, renderedBody);
 }
 
 void Push::send(const String& sender, const String& message, const String& timestamp, const MsgTypeInfo& msgType) {
@@ -144,9 +155,9 @@ void Push::executeChain(const String& sender, const String& message, const Strin
     // 渲染自定义消息格式（非空时替换内置默认格式）
     ctx.channelName = ch.name;
     ctx.channelType    = pushTypeLabel(ch.type);
-    String renderedBody = ch.customBody.length() > 0 ? MsgContext::render(ch.customBody, ctx) : "";
+    String renderedBody = ch.customBody.length() > 0 ? sanitizeText(MsgContext::render(ch.customBody, ctx)) : "";
 
-    bool ok = _sendOneChannel(ch, ctx, sender, message, timestamp, renderedBody);
+    bool ok = _sendOneChannel(ch, ctx, sender, sanitizeText(message), timestamp, renderedBody);
 
     if (config.pushStrategy == PUSH_STRATEGY_FAILOVER) {
       if (ok) {
