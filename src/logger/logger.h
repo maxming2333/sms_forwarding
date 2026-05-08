@@ -13,7 +13,7 @@ public:
   // LittleFS 持久化参数
   // LittleFS 分区 256KB，HTML 文件共 ~104KB，实际可用约 130KB。
   static constexpr size_t FILE_MAX_BYTES  = 96 * 1024;   // 文件最大 96KB（< LittleFS 可用量）
-  static constexpr size_t FILE_KEEP_BYTES = 48 * 1024;   // 溢出时保留末尾 48KB（必须 < FILE_MAX_BYTES）
+  static constexpr size_t FILE_KEEP_BYTES = FILE_MAX_BYTES - (5 * 300);   // 溢出时保留末尾（必须 < FILE_MAX_BYTES），删除前 5 行
   static constexpr const char* FILE_PATH  = "/log.txt";
   static constexpr int    FILE_SKIP_MAX   = 16;          // 模块黑名单最大条目数
 
