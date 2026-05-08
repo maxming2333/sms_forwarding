@@ -69,6 +69,7 @@ struct Config {
   int          pushCount;
   bool         simNotifyEnabled;
   bool         dataTraffic;
+  bool         logFileEnabled;
   WifiEntry    wifiList[MAX_WIFI_ENTRIES];
   int          wifiCount;
   String       blacklist[MAX_BLACKLIST_ENTRIES];

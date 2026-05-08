@@ -43,8 +43,7 @@ static void rotateIfNeeded() {
 
 // ---------- 公有方法 ----------
 
-void Logger::enableFile(const char* const* fileSkipModules) {
-  s_fileEnabled    = true;
+void Logger::init(const char* const* fileSkipModules) {
   s_fileSkipCount  = 0;
   if (fileSkipModules) {
     for (int i = 0; fileSkipModules[i] != nullptr && i < Logger::FILE_SKIP_MAX; i++) {
@@ -53,13 +52,17 @@ void Logger::enableFile(const char* const* fileSkipModules) {
   }
 }
 
+void Logger::setFileEnabled(bool enabled) {
+  s_fileEnabled = enabled;
+}
+
 void Logger::clearFile() {
   LittleFS.remove(FILE_PATH);
   s_lastModule[0] = '\0';
   s_lastMsg[0]    = '\0';
 }
 
-void Logger::print(const char* module, const char* fmt, ...) {
+void Logger::log(const char* module, const char* fmt, ...) {
   char ts[20];
   time_t now = time(nullptr);
   struct tm t;

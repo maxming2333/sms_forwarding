@@ -18,6 +18,7 @@ void configController(AsyncWebServerRequest* request) {
 
   root["simNotifyEnabled"] = config.simNotifyEnabled;
   root["dataTraffic"]      = config.dataTraffic;
+  root["logFileEnabled"]   = config.logFileEnabled;
 
   root["pushStrategy"] = (int)config.pushStrategy;
   root["pushCount"]    = config.pushCount;

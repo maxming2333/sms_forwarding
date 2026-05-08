@@ -57,6 +57,7 @@ void ConfigStore::load() {
 
   config.simNotifyEnabled = prefs.isKey("simNotify") ? prefs.getBool("simNotify", false) : false;
   config.dataTraffic      = prefs.getBool("dataTraffic", false);
+  config.logFileEnabled   = prefs.isKey("logFile") ? prefs.getBool("logFile", true) : true;
 
   if (prefs.isKey("wifiCount")) {
     config.wifiCount = constrain((int)prefs.getUChar("wifiCount", 0), 0, MAX_WIFI_ENTRIES);
@@ -130,6 +131,7 @@ void ConfigStore::save() {
 
   prefs.putBool("simNotify",   config.simNotifyEnabled);
   prefs.putBool("dataTraffic", config.dataTraffic);
+  prefs.putBool("logFile",     config.logFileEnabled);
 
   prefs.putUChar("wifiCount", (uint8_t)config.wifiCount);
   for (int i = 0; i < config.wifiCount; i++) {
@@ -287,6 +289,7 @@ void ConfigStore::toJson(JsonDocument& doc) {
   general["webPass"]          = config.webPass;
   general["simNotifyEnabled"] = config.simNotifyEnabled;
   general["dataTraffic"]      = config.dataTraffic;
+  general["logFileEnabled"]   = config.logFileEnabled;
   general["pushStrategy"]     = (int)config.pushStrategy;
   general["remark"]           = config.remark;
 
@@ -332,6 +335,7 @@ void ConfigStore::fromJson(JsonDocument& doc) {
     config.webPass          = g["webPass"]          | config.webPass;
     config.simNotifyEnabled = g["simNotifyEnabled"] | config.simNotifyEnabled;
     config.dataTraffic      = g["dataTraffic"]      | config.dataTraffic;
+    config.logFileEnabled   = g["logFileEnabled"]   | config.logFileEnabled;
     config.pushStrategy     = (PushStrategy)(g["pushStrategy"] | (int)config.pushStrategy);
     if (g["remark"].is<const char*>()) {
       config.remark = String(g["remark"].as<const char*>()).substring(0, 64);

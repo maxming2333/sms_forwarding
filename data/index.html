@@ -146,9 +146,48 @@
         margin-bottom: 10px;
       }
 
+      /* ── iOS 胶囊开关 ── */
+      input[type="checkbox"] {
+        -webkit-appearance: none;
+        appearance: none;
+        position: relative;
+        width: 44px;
+        height: 24px;
+        background: #ccc;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: background 0.25s;
+        flex-shrink: 0;
+        vertical-align: middle;
+      }
+      input[type="checkbox"]:checked {
+        background: #4caf50;
+      }
+      input[type="checkbox"]::before {
+        content: '';
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        background: #fff;
+        border-radius: 50%;
+        top: 3px;
+        left: 3px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+        transition: left 0.25s;
+      }
+      input[type="checkbox"]:checked::before {
+        left: 23px;
+      }
+      /* 包含 checkbox 的 label 改为 flex 以便垂直居中对齐 */
+      label:has(> input[type="checkbox"]) {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        font-weight: normal;
+      }
       .push-channel-header input[type="checkbox"] {
-        width: auto;
-        margin-right: 8px;
+        margin-right: 0;
       }
 
       .push-channel-header label {
@@ -509,6 +548,16 @@
                 />
                 数据流量（SIM 卡就绪后自动激活/关闭数据连接，开启则发送
                 AT+CGACT=1,1，关闭则发送 AT+CGACT=0,1）
+              </label>
+            </div>
+            <div class="form-group">
+              <label>
+                <input
+                  type="checkbox"
+                  name="logFileEnabled"
+                  id="logFileEnabled"
+                />
+                写入日志文件（将日志持久化到 Flash，关闭可减少 Flash 擦写次数延长寿命）
               </label>
             </div>
           </div>
@@ -1064,6 +1113,8 @@
           !!data.simNotifyEnabled;
         document.getElementById("dataTrafficEnabled").checked =
           !!data.dataTraffic;
+        document.getElementById("logFileEnabled").checked =
+          data.logFileEnabled !== false;
 
         var channels = data.pushChannels || [];
         g_pushChannels = [];

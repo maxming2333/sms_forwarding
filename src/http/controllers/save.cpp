@@ -32,6 +32,7 @@ void saveController(AsyncWebServerRequest* request) {
   if (isFullForm) {
     config.simNotifyEnabled = request->hasParam("simNotifyEnabled", true);
     config.dataTraffic       = request->hasParam("dataTraffic",      true);
+    config.logFileEnabled    = request->hasParam("logFileEnabled",   true);
   }
 
   if (request->hasParam("pushStrategy", true)) {
@@ -70,6 +71,7 @@ void saveController(AsyncWebServerRequest* request) {
   }
 
   ConfigStore::save();
+  Logger::setFileEnabled(config.logFileEnabled);
   HttpServer::refreshAuthCredentials();
 
   LOG("HSAVE", "配置已保存，发送成功响应");

@@ -130,7 +130,8 @@ void setup() {
     // 不写入文件的模块（仍输出到串口和内存缓冲）；如需全量记录传 nullptr。
     // 可用模块名：Push / PushQ / Retry / SMS / SIM / Call / WiFi / HTTP / OTA / BLE / Time / Cfg
     static const char* kLogFileSkip[] = { nullptr };
-    Logger::enableFile(kLogFileSkip);
+    Logger::init(kLogFileSkip);
+    Logger::setFileEnabled(config.logFileEnabled);
   }
   esp_task_wdt_reset();
 
