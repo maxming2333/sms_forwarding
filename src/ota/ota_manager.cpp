@@ -2,11 +2,10 @@
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
 #include <LittleFS.h>
-#include <HTTPClient.h>
-#include <WiFiClientSecure.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include "../logger/logger.h"
+#include "../utils/http.h"
 
 // ── 内部静态状态 ─────────────────────────────────────────────────
 static volatile OtaState       g_state     = OtaState::IDLE;
@@ -25,15 +24,6 @@ static TaskHandle_t            g_taskHandle = nullptr;
 static const esp_partition_t*  g_lfsPart        = nullptr;
 static size_t                  g_lfsWriteOffset = 0;
 static size_t                  g_lfsTotalSize   = 0;
-
-static void beginHttpClient(HTTPClient& http, WiFiClientSecure& tlsClient, const String& url) {
-    if (url.startsWith("https://")) {
-        tlsClient.setInsecure();
-        http.begin(tlsClient, url);
-    } else {
-        http.begin(url);
-    }
-}
 
 // ── Ota::version ────────────────────────────────────────
 String Ota::version() {
@@ -76,29 +66,28 @@ OtaStatusPayload Ota::status() {
     return p;
 }
 
-// ── fetchLatestTag — 向 GitHub 查询最新 release tag（含块作用域，TLS 自动释放）──
+// ── fetchLatestTag — 向 GitHub 查询最新 release tag──
 // 成功返回 tag 字符串，失败返回空串
 static String fetchLatestTag(const String& url) {
     String latestTag = "";
-    {
-        HTTPClient verHttp;
-        WiFiClientSecure verTls;
-        beginHttpClient(verHttp, verTls, url);
-        verHttp.setTimeout(OTA_HTTP_TIMEOUT_MS);
-        verHttp.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
-        int verCode = verHttp.GET();
-        if (verCode == 301 || verCode == 302) {
-            String location = verHttp.getLocation();
-            int slash = location.lastIndexOf('/');
-            if (slash >= 0 && slash < (int)location.length() - 1) {
-                latestTag = location.substring(slash + 1);
-            }
-            LOG("OTA", "最新版本: %s（重定向: %s）", latestTag.c_str(), location.c_str());
-        } else {
-            LOG("OTA", "版本检查响应码: %d（期望 301/302）", verCode);
+    auto session = std::unique_ptr<HttpSession>(HttpSession::request(url));
+    if (!session) {
+        LOG("OTA", "版本检查：无法建立 HTTP 连接");
+        return latestTag;
+    }
+    session->http()->setTimeout(OTA_HTTP_TIMEOUT_MS);
+    session->http()->setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+    int verCode = session->http()->GET();
+    if (verCode == 301 || verCode == 302) {
+        String location = session->http()->getLocation();
+        int slash = location.lastIndexOf('/');
+        if (slash >= 0 && slash < (int)location.length() - 1) {
+            latestTag = location.substring(slash + 1);
         }
-        verHttp.end();
-    }  // verTls destructor 此处释放 mbedtls 上下文
+        LOG("OTA", "最新版本: %s（重定向: %s）", latestTag.c_str(), location.c_str());
+    } else {
+        LOG("OTA", "版本检查响应码: %d（期望 301/302）", verCode);
+    }
     return latestTag;
 }
 
@@ -133,9 +122,9 @@ static void onlineUpgradeTask(void* param) {
 
     g_latestVer = latestTag;
 
-    // 注意：每个 HTTP/TLS 阶段都用独立块作用域包裹，确保 WiFiClientSecure 的
-    // mbedtls 上下文（~35KB heap）在下一阶段开始前由 destructor 释放，
-    // 避免多个 TLS 上下文并存导致 MBEDTLS_ERR_SSL_ALLOC_FAILED。
+    // 注意：每个 HTTP/TLS 阶段使用独立的 HttpSession（unique_ptr），确保
+    // WiFiClientSecure 的 mbedtls 上下文（~35KB heap）在下一阶段开始前
+    // 由 destructor 释放，避免多个 TLS 上下文并存导致 MBEDTLS_ERR_SSL_ALLOC_FAILED。
 
     // --- 阶段1（已跳过版本检查，tag 由调用方提供）---
     LOG("OTA", "开始在线升级，目标版本: %s", latestTag.c_str());
@@ -164,40 +153,39 @@ static void onlineUpgradeTask(void* param) {
     bool dlFailed    = false;
     int  totalWritten = 0;
     {
-        HTTPClient dlHttp;
-        WiFiClientSecure fwTls;
-        beginHttpClient(dlHttp, fwTls, firmwareUrl);
-        dlHttp.setTimeout(OTA_HTTP_TIMEOUT_MS);
-        dlHttp.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
-        dlHttp.setRedirectLimit(10);
-        int dlCode = dlHttp.GET();
+        auto dlSession = std::unique_ptr<HttpSession>(HttpSession::request(firmwareUrl));
+        if (!dlSession) {
+            esp_ota_abort(g_otaHandle);
+            otaTaskAbort("无法建立固件下载连接");
+        }
+        dlSession->http()->setTimeout(OTA_HTTP_TIMEOUT_MS);
+        dlSession->http()->setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+        dlSession->http()->setRedirectLimit(10);
+        int dlCode = dlSession->http()->GET();
         if (dlCode != 200) {
-            dlHttp.end();
             esp_ota_abort(g_otaHandle);
             LOG("OTA", "固件下载 HTTP 响应码: %d", dlCode);
             otaTaskAbort("连接固件服务器失败，响应码: " + String(dlCode));
         }
 
-        int contentLen = dlHttp.getSize();
+        int contentLen = dlSession->http()->getSize();
         LOG("OTA", "固件大小: %d 字节", contentLen);
         if (contentLen <= 0) {
-            dlHttp.end();
             esp_ota_abort(g_otaHandle);
             otaTaskAbort("固件服务器未返回有效大小");
         }
         if ((size_t)contentLen > g_otaPart->size) {
-            dlHttp.end();
             esp_ota_abort(g_otaHandle);
             LOG("OTA", "固件大小超过 OTA 分区: %d > %u", contentLen, (unsigned)g_otaPart->size);
             otaTaskAbort("固件大小超过 OTA 分区");
         }
 
-        WiFiClient* dlStream = dlHttp.getStreamPtr();
+        WiFiClient* dlStream = dlSession->http()->getStreamPtr();
         uint8_t dlBuf[512];
         int remaining        = contentLen;
         unsigned long lastDataMs = millis();
 
-        while (dlHttp.connected() && (remaining > 0 || remaining == -1)) {
+        while (dlSession->http()->connected() && (remaining > 0 || remaining == -1)) {
             int available = dlStream->available();
             if (available > 0) {
                 lastDataMs = millis();
@@ -230,13 +218,12 @@ static void onlineUpgradeTask(void* param) {
                 vTaskDelay(pdMS_TO_TICKS(10));
             }
         }
-        dlHttp.end();
 
         if (!dlFailed && contentLen > 0 && totalWritten < contentLen) {
             LOG("OTA", "固件下载不完整：%d/%d 字节", totalWritten, contentLen);
             dlFailed = true;
         }
-    }  // fwTls destructor 此处释放 mbedtls 上下文
+    }  // dlSession destructor 此处释放 HTTPClient 及 mbedtls TLS 上下文
 
     if (dlFailed) {
         esp_ota_abort(g_otaHandle);
@@ -270,85 +257,83 @@ static void onlineUpgradeTask(void* param) {
         bool fsFailed      = false;
         int  fsTotalWritten = 0;
         {
-            HTTPClient fsHttp;
-            WiFiClientSecure fsTls;
-            beginHttpClient(fsHttp, fsTls, fsUrl);
-            fsHttp.setTimeout(OTA_HTTP_TIMEOUT_MS);
-            fsHttp.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
-            fsHttp.setRedirectLimit(10);
-            int fsCode = fsHttp.GET();
-            if (fsCode != 200) {
-                fsHttp.end();
-                LOG("OTA", "LittleFS 下载 HTTP 响应码: %d，跳过 Web UI 升级", fsCode);
-                // 不中止，仅升级固件
+            auto fsSession = std::unique_ptr<HttpSession>(HttpSession::request(fsUrl));
+            if (!fsSession) {
+                LOG("OTA", "LittleFS：无法建立 HTTP 连接，跳过 Web UI 升级");
+                fsFailed = true;
             } else {
-                int fsContentLen = fsHttp.getSize();
-                LOG("OTA", "LittleFS 大小: %d 字节", fsContentLen);
-                if (fsContentLen <= 0) {
-                    fsHttp.end();
-                    LOG("OTA", "LittleFS 响应未返回有效大小，跳过 Web UI 升级");
-                    fsFailed = true;
-                } else if ((size_t)fsContentLen > fsPart->size) {
-                    fsHttp.end();
-                    LOG("OTA", "LittleFS 镜像超过分区大小: %d > %u", fsContentLen, (unsigned)fsPart->size);
-                    fsFailed = true;
+                fsSession->http()->setTimeout(OTA_HTTP_TIMEOUT_MS);
+                fsSession->http()->setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+                fsSession->http()->setRedirectLimit(10);
+                int fsCode = fsSession->http()->GET();
+                if (fsCode != 200) {
+                    LOG("OTA", "LittleFS 下载 HTTP 响应码: %d，跳过 Web UI 升级", fsCode);
+                    // 不中止，仅升级固件
                 } else {
-                    g_message = "正在写入 Web UI...";
-
-                    LittleFS.end();
-                    esp_err_t eraseErr = esp_partition_erase_range(fsPart, 0, fsPart->size);
-                    if (eraseErr != ESP_OK) {
-                        fsHttp.end();
-                        LOG("OTA", "LittleFS 分区擦除失败: %s", esp_err_to_name(eraseErr));
-                        otaTaskAbort("Web UI 分区擦除失败: " + String(esp_err_to_name(eraseErr)));
-                    }
-
-                    WiFiClient* fsStream = fsHttp.getStreamPtr();
-                    uint8_t fsBuf[512];
-                    int fsRemaining        = fsContentLen;
-                    unsigned long fsLastDataMs = millis();
-
-                    while (fsHttp.connected() && (fsRemaining > 0 || fsRemaining == -1)) {
-                        int fsAvailable = fsStream->available();
-                        if (fsAvailable > 0) {
-                            fsLastDataMs = millis();
-                            int fsToRead  = min(fsAvailable, (int)sizeof(fsBuf));
-                            int fsReadLen = fsStream->readBytes(fsBuf, fsToRead);
-                            if (fsReadLen > 0) {
-                                if ((size_t)fsTotalWritten + (size_t)fsReadLen > fsPart->size) {
-                                    LOG("OTA", "LittleFS 写入超过分区边界");
-                                    fsFailed = true;
-                                    break;
-                                }
-                                esp_err_t wErr = esp_partition_write(fsPart, fsTotalWritten, fsBuf, fsReadLen);
-                                if (wErr != ESP_OK) {
-                                    LOG("OTA", "LittleFS esp_partition_write 失败: %s", esp_err_to_name(wErr));
-                                    fsFailed = true;
-                                    break;
-                                }
-                                fsTotalWritten += fsReadLen;
-                                if (fsRemaining > 0) fsRemaining -= fsReadLen;
-                                if (fsContentLen > 0) {
-                                    g_progress = (uint8_t)((fsTotalWritten * 100) / fsContentLen);
-                                }
-                            }
-                        } else {
-                            if (millis() - fsLastDataMs > (unsigned long)OTA_HTTP_TIMEOUT_MS) {
-                                LOG("OTA", "LittleFS 下载超时，已写入 %d/%d 字节", fsTotalWritten, fsContentLen);
-                                fsFailed = true;
-                                break;
-                            }
-                            vTaskDelay(pdMS_TO_TICKS(10));
-                        }
-                    }
-                    fsHttp.end();
-
-                    if (fsContentLen > 0 && fsTotalWritten < fsContentLen) {
+                    int fsContentLen = fsSession->http()->getSize();
+                    LOG("OTA", "LittleFS 大小: %d 字节", fsContentLen);
+                    if (fsContentLen <= 0) {
+                        LOG("OTA", "LittleFS 响应未返回有效大小，跳过 Web UI 升级");
                         fsFailed = true;
+                    } else if ((size_t)fsContentLen > fsPart->size) {
+                        LOG("OTA", "LittleFS 镜像超过分区大小: %d > %u", fsContentLen, (unsigned)fsPart->size);
+                        fsFailed = true;
+                    } else {
+                        g_message = "正在写入 Web UI...";
+
+                        LittleFS.end();
+                        esp_err_t eraseErr = esp_partition_erase_range(fsPart, 0, fsPart->size);
+                        if (eraseErr != ESP_OK) {
+                            LOG("OTA", "LittleFS 分区擦除失败: %s", esp_err_to_name(eraseErr));
+                            otaTaskAbort("Web UI 分区擦除失败: " + String(esp_err_to_name(eraseErr)));
+                        }
+
+                        WiFiClient* fsStream = fsSession->http()->getStreamPtr();
+                        uint8_t fsBuf[512];
+                        int fsRemaining        = fsContentLen;
+                        unsigned long fsLastDataMs = millis();
+
+                        while (fsSession->http()->connected() && (fsRemaining > 0 || fsRemaining == -1)) {
+                            int fsAvailable = fsStream->available();
+                            if (fsAvailable > 0) {
+                                fsLastDataMs = millis();
+                                int fsToRead  = min(fsAvailable, (int)sizeof(fsBuf));
+                                int fsReadLen = fsStream->readBytes(fsBuf, fsToRead);
+                                if (fsReadLen > 0) {
+                                    if ((size_t)fsTotalWritten + (size_t)fsReadLen > fsPart->size) {
+                                        LOG("OTA", "LittleFS 写入超过分区边界");
+                                        fsFailed = true;
+                                        break;
+                                    }
+                                    esp_err_t wErr = esp_partition_write(fsPart, fsTotalWritten, fsBuf, fsReadLen);
+                                    if (wErr != ESP_OK) {
+                                        LOG("OTA", "LittleFS esp_partition_write 失败: %s", esp_err_to_name(wErr));
+                                        fsFailed = true;
+                                        break;
+                                    }
+                                    fsTotalWritten += fsReadLen;
+                                    if (fsRemaining > 0) fsRemaining -= fsReadLen;
+                                    if (fsContentLen > 0) {
+                                        g_progress = (uint8_t)((fsTotalWritten * 100) / fsContentLen);
+                                    }
+                                }
+                            } else {
+                                if (millis() - fsLastDataMs > (unsigned long)OTA_HTTP_TIMEOUT_MS) {
+                                    LOG("OTA", "LittleFS 下载超时，已写入 %d/%d 字节", fsTotalWritten, fsContentLen);
+                                    fsFailed = true;
+                                    break;
+                                }
+                                vTaskDelay(pdMS_TO_TICKS(10));
+                            }
+                        }
+
+                        if (fsContentLen > 0 && fsTotalWritten < fsContentLen) {
+                            fsFailed = true;
+                        }
                     }
                 }
             }
-        }  // fsTls destructor 此处释放 mbedtls 上下文
+        }  // fsSession destructor 此处释放 HTTPClient 及 mbedtls TLS 上下文
 
         if (fsFailed) {
             LOG("OTA", "LittleFS 写入不完整或失败，继续完成固件升级");

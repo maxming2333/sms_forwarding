@@ -1,8 +1,7 @@
 #include "push_channels.h"
 #include "../logger/logger.h"
 #include "sms/sms.h"
-#include <HTTPClient.h>
-#include <WiFiClientSecure.h>
+#include "../utils/http.h"
 #include <ArduinoJson.h>
 #include <mbedtls/md.h>
 #include <base64.h>
@@ -53,50 +52,35 @@ static int64_t getUtcMillis() {
 // 上次 HTTP 请求完成的时刻（millis()）；0 表示尚未发送过任何请求。
 static unsigned long s_lastHttpEndMs = 0;
 
-// 结束 HTTP 请求并记录完成时刻，供下一次 beginHttpClient 计算冷却间隔。
-static void endHttpClient(HTTPClient& http) {
-  http.end();
-  s_lastHttpEndMs = millis();
-}
-
-
-// 记录响应结果；失败时额外打印首 120 字节响应 body，便于定位原因。
-static bool IsResponseSuccessful(HTTPClient& http, int code) {
-  if (code >= 200 && code < 300) {
-    LOG("PUSHCH", "响应码: %d 成功", code);
-  } else {
-    String resp = http.getString();
-    if (resp.length() > 120) resp = resp.substring(0, 120) + "...";
-    LOG("PUSHCH", "响应码: %d 失败，响应体: %s", code, resp.c_str());
-  }
-  endHttpClient(http);
-  return code >= 200 && code < 300;
-}
-
-static void beginHttpClient(HTTPClient& http, WiFiClientSecure& tlsClient, const String& url) {
-  // 若距上次请求完成不足 HTTP_COOLDOWN_MS，稍作等待，
-  // 给 TCP/TLS 栈（mbedtls 上下文、lwIP socket）足够的资源释放时间。
+// 等待冷却间隔后创建 HttpSession，给 TCP/TLS 栈足够的资源释放时间。
+// 失败（连接无法建立）时返回 nullptr。
+static std::unique_ptr<HttpSession> request(const String& url) {
   unsigned long now = millis();
   if (s_lastHttpEndMs > 0 && now - s_lastHttpEndMs < HTTP_COOLDOWN_MS) {
     delay(HTTP_COOLDOWN_MS - (now - s_lastHttpEndMs));
   }
-  if (url.startsWith("https://")) {
-    tlsClient.setInsecure();
-    http.begin(tlsClient, url);
+  return std::unique_ptr<HttpSession>(HttpSession::request(url));
+}
+
+// 记录响应结果并更新冷却时间戳；失败时额外打印首 120 字节响应 body，便于定位原因。
+static bool isResponseSuccessful(HttpSession* session, int code) {
+  if (code >= 200 && code < 300) {
+    LOG("PUSHCH", "响应码: %d 成功", code);
   } else {
-    http.begin(url);
+    String resp = session->http()->getString();
+    if (resp.length() > 120) resp = resp.substring(0, 120) + "...";
+    LOG("PUSHCH", "响应码: %d 失败，响应体: %s", code, resp.c_str());
   }
-  http.setConnectTimeout(5000);
-  http.setTimeout(10000);
+  s_lastHttpEndMs = millis();
+  return code >= 200 && code < 300;
 }
 
 // ---------- channel implementations ----------
 
 bool PushChannels::sendPostJson(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
-  HTTPClient http;
-  WiFiClientSecure tlsClient;
-  beginHttpClient(http, tlsClient, ch.url);
-  http.addHeader("Content-Type", "application/json");
+  auto session = request(ch.url);
+  if (!session) return false;
+  session->http()->addHeader("Content-Type", "application/json");
 
   String body;
   if (renderedBody.length() > 0) {
@@ -110,15 +94,14 @@ bool PushChannels::sendPostJson(const PushChannel& ch, const String& sender, con
   }
 
   LOG("PUSHCH", "POST JSON to %s: %s", ch.url.c_str(), body.c_str());
-  int code = http.POST(body);
-  return IsResponseSuccessful(http, code);
+  int code = session->http()->POST(body);
+  return isResponseSuccessful(session.get(), code);
 }
 
 bool PushChannels::sendBark(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
-  HTTPClient http;
-  WiFiClientSecure tlsClient;
-  beginHttpClient(http, tlsClient, ch.url);
-  http.addHeader("Content-Type", "application/json");
+  auto session = request(ch.url);
+  if (!session) return false;
+  session->http()->addHeader("Content-Type", "application/json");
 
   JsonDocument doc;
   // key1 已由调用方渲染，非空时作为自定义标题，否则回退到发件人号码
@@ -129,8 +112,8 @@ bool PushChannels::sendBark(const PushChannel& ch, const String& sender, const S
   serializeJson(doc, body);
 
   LOG("PUSHCH", "Bark to %s: %s", ch.url.c_str(), body.c_str());
-  int code = http.POST(body);
-  return IsResponseSuccessful(http, code);
+  int code = session->http()->POST(body);
+  return isResponseSuccessful(session.get(), code);
 }
 
 bool PushChannels::sendGet(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
@@ -140,13 +123,11 @@ bool PushChannels::sendGet(const PushChannel& ch, const String& sender, const St
   url += "&message=" + urlEncode(renderedBody.length() > 0 ? renderedBody : message);
   url += "&timestamp=" + urlEncode(timestamp);
 
-  HTTPClient http;
-  WiFiClientSecure tlsClient;
-
   LOG("PUSHCH", "GET %s", url.c_str());
-  beginHttpClient(http, tlsClient, url);
-  int code = http.GET();
-  return IsResponseSuccessful(http, code);
+  auto session = request(url);
+  if (!session) return false;
+  int code = session->http()->GET();
+  return isResponseSuccessful(session.get(), code);
 }
 
 bool PushChannels::sendDingtalk(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
@@ -161,10 +142,9 @@ bool PushChannels::sendDingtalk(const PushChannel& ch, const String& sender, con
     webhookUrl += "timestamp=" + String(tsBuf) + "&sign=" + sign;
   }
 
-  HTTPClient http;
-  WiFiClientSecure tlsClient;
-  beginHttpClient(http, tlsClient, webhookUrl);
-  http.addHeader("Content-Type", "application/json");
+  auto session = request(webhookUrl);
+  if (!session) return false;
+  session->http()->addHeader("Content-Type", "application/json");
 
   String content = renderedBody.length() > 0 ? renderedBody : ("📱短信通知\n发送者: " + sender + "\n内容: " + message + "\n时间: " + timestamp);
 
@@ -175,16 +155,15 @@ bool PushChannels::sendDingtalk(const PushChannel& ch, const String& sender, con
   serializeJson(doc, body);
 
   LOG("PUSHCH", "DingTalk: %s", body.c_str());
-  int code = http.POST(body);
-  return IsResponseSuccessful(http, code);
+  int code = session->http()->POST(body);
+  return isResponseSuccessful(session.get(), code);
 }
 
 bool PushChannels::sendPushPlus(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
   String url = ch.url.length() > 0 ? ch.url : "http://www.pushplus.plus/send";
-  HTTPClient http;
-  WiFiClientSecure tlsClient;
-  beginHttpClient(http, tlsClient, url);
-  http.addHeader("Content-Type", "application/json");
+  auto session = request(url);
+  if (!session) return false;
+  session->http()->addHeader("Content-Type", "application/json");
 
   String channelValue = "wechat";
   if (ch.key2.length() > 0) {
@@ -206,44 +185,41 @@ bool PushChannels::sendPushPlus(const PushChannel& ch, const String& sender, con
   serializeJson(doc, body);
 
   LOG("PUSHCH", "PushPlus: %s", body.c_str());
-  int code = http.POST(body);
-  return IsResponseSuccessful(http, code);
+  int code = session->http()->POST(body);
+  return isResponseSuccessful(session.get(), code);
 }
 
 bool PushChannels::sendServerChan(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
   String url = ch.url.length() > 0 ? ch.url : ("https://sctapi.ftqq.com/" + ch.key1 + ".send");
-  HTTPClient http;
-  WiFiClientSecure tlsClient;
-  beginHttpClient(http, tlsClient, url);
-  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  auto session = request(url);
+  if (!session) return false;
+  session->http()->addHeader("Content-Type", "application/x-www-form-urlencoded");
 
   String desp = renderedBody.length() > 0 ? renderedBody : ("**发送者:** " + sender + "\n\n**时间:** " + timestamp + "\n\n**内容:**\n\n" + message);
   String postData = "title=" + urlEncode("短信来自: " + sender);
   postData += "&desp=" + urlEncode(desp);
 
   LOG("PUSHCH", "Server酱: %s", postData.c_str());
-  int code = http.POST(postData);
-  return IsResponseSuccessful(http, code);
+  int code = session->http()->POST(postData);
+  return isResponseSuccessful(session.get(), code);
 }
 
 bool PushChannels::sendCustom(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
   // 类型7（POST请求）：使用 renderedBody（非空）或空 body（FR-008）
-  HTTPClient http;
-  WiFiClientSecure tlsClient;
-  beginHttpClient(http, tlsClient, ch.url);
-  http.addHeader("Content-Type", "application/json");
+  auto session = request(ch.url);
+  if (!session) return false;
+  session->http()->addHeader("Content-Type", "application/json");
 
   String body = renderedBody;  // 可为空（FR-008: 留空时发送空 POST body）
   LOG("PUSHCH", "POST请求: %s，body长度: %d", ch.url.c_str(), body.length());
-  int code = http.POST(body);
-  return IsResponseSuccessful(http, code);
+  int code = session->http()->POST(body);
+  return isResponseSuccessful(session.get(), code);
 }
 
 bool PushChannels::sendFeishu(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
-  HTTPClient http;
-  WiFiClientSecure tlsClient;
-  beginHttpClient(http, tlsClient, ch.url);
-  http.addHeader("Content-Type", "application/json");
+  auto session = request(ch.url);
+  if (!session) return false;
+  session->http()->addHeader("Content-Type", "application/json");
 
   JsonDocument doc;
 
@@ -261,18 +237,17 @@ bool PushChannels::sendFeishu(const PushChannel& ch, const String& sender, const
   serializeJson(doc, body);
 
   LOG("PUSHCH", "飞书: %s", body.c_str());
-  int code = http.POST(body);
-  return IsResponseSuccessful(http, code);
+  int code = session->http()->POST(body);
+  return isResponseSuccessful(session.get(), code);
 }
 
 bool PushChannels::sendGotify(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
   String url = ch.url;
   if (!url.endsWith("/")) url += "/";
   url += "message?token=" + ch.key1;
-  HTTPClient http;
-  WiFiClientSecure tlsClient;
-  beginHttpClient(http, tlsClient, url);
-  http.addHeader("Content-Type", "application/json");
+  auto session = request(url);
+  if (!session) return false;
+  session->http()->addHeader("Content-Type", "application/json");
 
   String msg = renderedBody.length() > 0 ? renderedBody : (message + "\n\n时间: " + timestamp);
   JsonDocument doc;
@@ -283,18 +258,17 @@ bool PushChannels::sendGotify(const PushChannel& ch, const String& sender, const
   serializeJson(doc, body);
 
   LOG("PUSHCH", "Gotify: %s", body.c_str());
-  int code = http.POST(body);
-  return IsResponseSuccessful(http, code);
+  int code = session->http()->POST(body);
+  return isResponseSuccessful(session.get(), code);
 }
 
 bool PushChannels::sendTelegram(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
   String baseUrl = ch.url.length() > 0 ? ch.url : "https://api.telegram.org";
   if (baseUrl.endsWith("/")) baseUrl.remove(baseUrl.length() - 1);
   String url = baseUrl + "/bot" + ch.key2 + "/sendMessage";
-  HTTPClient http;
-  WiFiClientSecure tlsClient;
-  beginHttpClient(http, tlsClient, url);
-  http.addHeader("Content-Type", "application/json");
+  auto session = request(url);
+  if (!session) return false;
+  session->http()->addHeader("Content-Type", "application/json");
 
   String text = renderedBody.length() > 0 ? renderedBody : ("📱短信通知\n发送者: " + sender + "\n内容: " + message + "\n时间: " + timestamp);
   JsonDocument doc;
@@ -304,8 +278,8 @@ bool PushChannels::sendTelegram(const PushChannel& ch, const String& sender, con
   serializeJson(doc, body);
 
   LOG("PUSHCH", "Telegram: %s", body.c_str());
-  int code = http.POST(body);
-  return IsResponseSuccessful(http, code);
+  int code = session->http()->POST(body);
+  return isResponseSuccessful(session.get(), code);
 }
 
 bool PushChannels::sendWechatWork(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
@@ -319,10 +293,9 @@ bool PushChannels::sendWechatWork(const PushChannel& ch, const String& sender, c
     webhookUrl += "timestamp=" + String(tsBuf) + "&sign=" + urlEncode(computeHmacSha256Base64(ch.key1, String(tsBuf) + "\n" + ch.key1));
   }
 
-  HTTPClient http;
-  WiFiClientSecure tlsClient;
-  beginHttpClient(http, tlsClient, webhookUrl);
-  http.addHeader("Content-Type", "application/json");
+  auto session = request(webhookUrl);
+  if (!session) return false;
+  session->http()->addHeader("Content-Type", "application/json");
 
   String content = renderedBody.length() > 0 ? renderedBody : ("📱短信通知\n发件人: " + sender + "\n内容: " + message + "\n时间: " + timestamp);
   JsonDocument doc;
@@ -332,8 +305,8 @@ bool PushChannels::sendWechatWork(const PushChannel& ch, const String& sender, c
   serializeJson(doc, body);
 
   LOG("PUSHCH", "企业微信: %s", body.c_str());
-  int code = http.POST(body);
-  return IsResponseSuccessful(http, code);
+  int code = session->http()->POST(body);
+  return isResponseSuccessful(session.get(), code);
 }
 
 bool PushChannels::sendSmsPush(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
