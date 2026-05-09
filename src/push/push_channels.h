@@ -7,26 +7,33 @@
 // （mbedtls 堆、lwIP socket）尚未充分释放就开始下一次 TLS 握手。
 constexpr unsigned long HTTP_COOLDOWN_MS = 500;
 
+// 消息体类型：DEFAULT = 原始短信内容，CUSTOM = 用户自定义渲染后的 body。
+// content 均已经过 sanitizeText 净化。
+enum PushBodyType { PUSH_BODY_DEFAULT, PUSH_BODY_CUSTOM };
+struct PushBody {
+  PushBodyType type;
+  String       content;
+};
+
 // 各推送渠道的具体发送实现。
-// 约定：`renderedBody` 是用户在配置中自定义的请求体经模板渲染后的最终内容；
-//   - 非空：直接作为 HTTP 请求体发送，覆盖渠道默认 payload；
-//   - 空：使用渠道的内置默认 payload（短信文本拼装）。
+// 约定：message.type == PUSH_BODY_CUSTOM 时 message.content 是用户自定义请求体，
+//   否则 message.content 是原始短信文本；两者均已净化。
 // 所有方法都是同步阻塞的；返回 true 表示 HTTP 状态码符合该渠道的成功语义。
 //
 // 重要：每个发送函数内部都使用**栈上**的 WiFiClientSecure / HTTPClient，
 // 严禁共享，否则在并发推送或与 OTA 同时下载时会导致 TLS 状态损坏。
 class PushChannels {
 public:
-  static bool sendPostJson  (const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody);
-  static bool sendBark      (const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody);
-  static bool sendGet       (const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody);
-  static bool sendDingtalk  (const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody);
-  static bool sendPushPlus  (const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody);
-  static bool sendServerChan(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody);
-  static bool sendCustom    (const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody);
-  static bool sendFeishu    (const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody);
-  static bool sendGotify    (const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody);
-  static bool sendTelegram  (const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody);
-  static bool sendWechatWork(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody);
-  static bool sendSmsPush   (const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody);
+  static bool sendPostJson  (const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp);
+  static bool sendBark      (const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp);
+  static bool sendGet       (const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp);
+  static bool sendDingtalk  (const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp);
+  static bool sendPushPlus  (const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp);
+  static bool sendServerChan(const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp);
+  static bool sendCustom    (const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp);
+  static bool sendFeishu    (const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp);
+  static bool sendGotify    (const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp);
+  static bool sendTelegram  (const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp);
+  static bool sendWechatWork(const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp);
+  static bool sendSmsPush   (const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp);
 };

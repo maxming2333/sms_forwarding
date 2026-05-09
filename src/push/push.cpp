@@ -32,26 +32,34 @@ static String sanitizeText(const String& s) {
 
 // 内部辅助：按通道配置分发单次推送（不含跳过判断）
 // ctx 用于渲染 key1/key2 占位符
-static bool _sendOneChannel(const PushChannel& ch, const MessageContext& ctx, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
+static bool _sendOneChannel(const PushChannel& ch, const MessageContext& ctx, const String& sender, const String& message, const String& renderedBody, const String& timestamp) {
   // 在通道副本中渲染 key1/key2（不修改原通道配置）
   PushChannel rendered = ch;
   rendered.key1 = MsgContext::render(ch.key1, ctx);
   rendered.key2 = MsgContext::render(ch.key2, ctx);
 
+  // 集中判断：有自定义 body 时用 CUSTOM，否则用原始短信内容；两者均在此处净化
+  PushBody body;
+  if (renderedBody.length() > 0) {
+    body = { PUSH_BODY_CUSTOM,  sanitizeText(renderedBody) };
+  } else {
+    body = { PUSH_BODY_DEFAULT, sanitizeText(message) };
+  }
+
   bool ok = false;
   switch (rendered.type) {
-    case PUSH_TYPE_POST_JSON:   ok = PushChannels::sendPostJson(rendered, sender, message, timestamp, renderedBody);    break;
-    case PUSH_TYPE_BARK:        ok = PushChannels::sendBark(rendered, sender, message, timestamp, renderedBody);         break;
-    case PUSH_TYPE_GET:         ok = PushChannels::sendGet(rendered, sender, message, timestamp, renderedBody);          break;
-    case PUSH_TYPE_DINGTALK:    ok = PushChannels::sendDingtalk(rendered, sender, message, timestamp, renderedBody);     break;
-    case PUSH_TYPE_PUSHPLUS:    ok = PushChannels::sendPushPlus(rendered, sender, message, timestamp, renderedBody);     break;
-    case PUSH_TYPE_SERVERCHAN:  ok = PushChannels::sendServerChan(rendered, sender, message, timestamp, renderedBody);   break;
-    case PUSH_TYPE_CUSTOM:      ok = PushChannels::sendCustom(rendered, sender, message, timestamp, renderedBody);       break;
-    case PUSH_TYPE_FEISHU:      ok = PushChannels::sendFeishu(rendered, sender, message, timestamp, renderedBody);       break;
-    case PUSH_TYPE_GOTIFY:      ok = PushChannels::sendGotify(rendered, sender, message, timestamp, renderedBody);       break;
-    case PUSH_TYPE_TELEGRAM:    ok = PushChannels::sendTelegram(rendered, sender, message, timestamp, renderedBody);     break;
-    case PUSH_TYPE_WECHAT_WORK: ok = PushChannels::sendWechatWork(rendered, sender, message, timestamp, renderedBody);   break;
-    case PUSH_TYPE_SMS:         ok = PushChannels::sendSmsPush(rendered, sender, message, timestamp, renderedBody);      break;
+    case PUSH_TYPE_POST_JSON:   ok = PushChannels::sendPostJson(rendered, sender, body, timestamp);    break;
+    case PUSH_TYPE_BARK:        ok = PushChannels::sendBark(rendered, sender, body, timestamp);         break;
+    case PUSH_TYPE_GET:         ok = PushChannels::sendGet(rendered, sender, body, timestamp);          break;
+    case PUSH_TYPE_DINGTALK:    ok = PushChannels::sendDingtalk(rendered, sender, body, timestamp);     break;
+    case PUSH_TYPE_PUSHPLUS:    ok = PushChannels::sendPushPlus(rendered, sender, body, timestamp);     break;
+    case PUSH_TYPE_SERVERCHAN:  ok = PushChannels::sendServerChan(rendered, sender, body, timestamp);   break;
+    case PUSH_TYPE_CUSTOM:      ok = PushChannels::sendCustom(rendered, sender, body, timestamp);       break;
+    case PUSH_TYPE_FEISHU:      ok = PushChannels::sendFeishu(rendered, sender, body, timestamp);       break;
+    case PUSH_TYPE_GOTIFY:      ok = PushChannels::sendGotify(rendered, sender, body, timestamp);       break;
+    case PUSH_TYPE_TELEGRAM:    ok = PushChannels::sendTelegram(rendered, sender, body, timestamp);     break;
+    case PUSH_TYPE_WECHAT_WORK: ok = PushChannels::sendWechatWork(rendered, sender, body, timestamp);   break;
+    case PUSH_TYPE_SMS:         ok = PushChannels::sendSmsPush(rendered, sender, body, timestamp);      break;
     default:
       LOG("PUSH", "未知推送类型: %d", (int)rendered.type);
       break;
@@ -109,8 +117,8 @@ bool Push::executeChannel(int channelIdx, const String& sender, const String& me
   MessageContext ctx = buildMsgContext(sender, message, timestamp, msgType.toString());
   ctx.channelName = ch.name;
   ctx.channelType    = pushTypeLabel(ch.type);
-  String renderedBody = ch.customBody.length() > 0 ? sanitizeText(MsgContext::render(ch.customBody, ctx)) : "";
-  return _sendOneChannel(ch, ctx, sender, sanitizeText(message), timestamp, renderedBody);
+  String renderedBody = ch.customBody.length() > 0 ? MsgContext::render(ch.customBody, ctx) : "";
+  return _sendOneChannel(ch, ctx, sender, message, renderedBody, timestamp);
 }
 
 void Push::send(const String& sender, const String& message, const String& timestamp, const MsgTypeInfo& msgType) {
@@ -161,9 +169,9 @@ void Push::executeChain(const String& sender, const String& message, const Strin
     // 渲染自定义消息格式（非空时替换内置默认格式）
     ctx.channelName = ch.name;
     ctx.channelType    = pushTypeLabel(ch.type);
-    String renderedBody = ch.customBody.length() > 0 ? sanitizeText(MsgContext::render(ch.customBody, ctx)) : "";
+    String renderedBody = ch.customBody.length() > 0 ? MsgContext::render(ch.customBody, ctx) : "";
 
-    bool ok = _sendOneChannel(ch, ctx, sender, sanitizeText(message), timestamp, renderedBody);
+    bool ok = _sendOneChannel(ch, ctx, sender, message, renderedBody, timestamp);
 
     if (config.pushStrategy == PUSH_STRATEGY_FAILOVER) {
       if (ok) {

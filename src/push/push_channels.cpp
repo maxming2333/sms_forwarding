@@ -77,18 +77,18 @@ static bool isResponseSuccessful(HttpSession* session, int code) {
 
 // ---------- channel implementations ----------
 
-bool PushChannels::sendPostJson(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
+bool PushChannels::sendPostJson(const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp) {
   auto session = request(ch.url);
   if (!session) return false;
   session->http()->addHeader("Content-Type", "application/json");
 
   String body;
-  if (renderedBody.length() > 0) {
-    body = renderedBody;
+  if (message.type == PUSH_BODY_CUSTOM) {
+    body = message.content;
   } else {
     JsonDocument doc;
     doc["sender"]    = sender;
-    doc["message"]   = message;
+    doc["message"]   = message.content;
     doc["timestamp"] = timestamp;
     serializeJson(doc, body);
   }
@@ -98,7 +98,7 @@ bool PushChannels::sendPostJson(const PushChannel& ch, const String& sender, con
   return isResponseSuccessful(session.get(), code);
 }
 
-bool PushChannels::sendBark(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
+bool PushChannels::sendBark(const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp) {
   auto session = request(ch.url);
   if (!session) return false;
   session->http()->addHeader("Content-Type", "application/json");
@@ -107,7 +107,7 @@ bool PushChannels::sendBark(const PushChannel& ch, const String& sender, const S
   // key1 已由调用方渲染，非空时作为自定义标题，否则回退到发件人号码
   String title = ch.key1.length() > 0 ? ch.key1 : sender;
   doc["title"] = title;
-  doc["body"]  = renderedBody.length() > 0 ? renderedBody : message;
+  doc["body"]  = message.content;
   String body;
   serializeJson(doc, body);
 
@@ -116,11 +116,11 @@ bool PushChannels::sendBark(const PushChannel& ch, const String& sender, const S
   return isResponseSuccessful(session.get(), code);
 }
 
-bool PushChannels::sendGet(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
+bool PushChannels::sendGet(const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp) {
   String url = ch.url;
   url += (url.indexOf('?') == -1) ? "?" : "&";
   url += "sender=" + urlEncode(sender);
-  url += "&message=" + urlEncode(renderedBody.length() > 0 ? renderedBody : message);
+  url += "&message=" + urlEncode(message.content);
   url += "&timestamp=" + urlEncode(timestamp);
 
   LOG("PUSHCH", "GET %s", url.c_str());
@@ -130,7 +130,7 @@ bool PushChannels::sendGet(const PushChannel& ch, const String& sender, const St
   return isResponseSuccessful(session.get(), code);
 }
 
-bool PushChannels::sendDingtalk(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
+bool PushChannels::sendDingtalk(const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp) {
   String webhookUrl = ch.url;
 
   if (ch.key1.length() > 0) {
@@ -146,7 +146,7 @@ bool PushChannels::sendDingtalk(const PushChannel& ch, const String& sender, con
   if (!session) return false;
   session->http()->addHeader("Content-Type", "application/json");
 
-  String content = renderedBody.length() > 0 ? renderedBody : ("📱短信通知\n发送者: " + sender + "\n内容: " + message + "\n时间: " + timestamp);
+  String content = message.type == PUSH_BODY_CUSTOM ? message.content : ("📱短信通知\n发送者: " + sender + "\n内容: " + message.content + "\n时间: " + timestamp);
 
   JsonDocument doc;
   doc["msgtype"] = "text";
@@ -159,7 +159,7 @@ bool PushChannels::sendDingtalk(const PushChannel& ch, const String& sender, con
   return isResponseSuccessful(session.get(), code);
 }
 
-bool PushChannels::sendPushPlus(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
+bool PushChannels::sendPushPlus(const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp) {
   String url = ch.url.length() > 0 ? ch.url : "http://www.pushplus.plus/send";
   auto session = request(url);
   if (!session) return false;
@@ -174,7 +174,7 @@ bool PushChannels::sendPushPlus(const PushChannel& ch, const String& sender, con
     }
   }
 
-  String content = renderedBody.length() > 0 ? renderedBody : ("<b>发送者:</b> " + sender + "<br><b>时间:</b> " + timestamp + "<br><b>内容:</b><br>" + message);
+  String content = message.type == PUSH_BODY_CUSTOM ? message.content : ("<b>发送者:</b> " + sender + "<br><b>时间:</b> " + timestamp + "<br><b>内容:</b><br>" + message.content);
 
   JsonDocument doc;
   doc["token"]   = ch.key1;
@@ -189,13 +189,13 @@ bool PushChannels::sendPushPlus(const PushChannel& ch, const String& sender, con
   return isResponseSuccessful(session.get(), code);
 }
 
-bool PushChannels::sendServerChan(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
+bool PushChannels::sendServerChan(const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp) {
   String url = ch.url.length() > 0 ? ch.url : ("https://sctapi.ftqq.com/" + ch.key1 + ".send");
   auto session = request(url);
   if (!session) return false;
   session->http()->addHeader("Content-Type", "application/x-www-form-urlencoded");
 
-  String desp = renderedBody.length() > 0 ? renderedBody : ("**发送者:** " + sender + "\n\n**时间:** " + timestamp + "\n\n**内容:**\n\n" + message);
+  String desp = message.type == PUSH_BODY_CUSTOM ? message.content : ("**发送者:** " + sender + "\n\n**时间:** " + timestamp + "\n\n**内容:**\n\n" + message.content);
   String postData = "title=" + urlEncode("短信来自: " + sender);
   postData += "&desp=" + urlEncode(desp);
 
@@ -204,19 +204,19 @@ bool PushChannels::sendServerChan(const PushChannel& ch, const String& sender, c
   return isResponseSuccessful(session.get(), code);
 }
 
-bool PushChannels::sendCustom(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
-  // 类型7（POST请求）：使用 renderedBody（非空）或空 body（FR-008）
+bool PushChannels::sendCustom(const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp) {
+  // 类型7（POST请求）：使用 message.content（可为空，FR-008: 留空时发送空 POST body）
   auto session = request(ch.url);
   if (!session) return false;
   session->http()->addHeader("Content-Type", "application/json");
 
-  String body = renderedBody;  // 可为空（FR-008: 留空时发送空 POST body）
+  String body = message.content;
   LOG("PUSHCH", "POST请求: %s，body长度: %d", ch.url.c_str(), body.length());
   int code = session->http()->POST(body);
   return isResponseSuccessful(session.get(), code);
 }
 
-bool PushChannels::sendFeishu(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
+bool PushChannels::sendFeishu(const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp) {
   auto session = request(ch.url);
   if (!session) return false;
   session->http()->addHeader("Content-Type", "application/json");
@@ -229,7 +229,7 @@ bool PushChannels::sendFeishu(const PushChannel& ch, const String& sender, const
     doc["sign"]      = computeHmacSha256Base64(ch.key1, String(ts) + "\n" + ch.key1);
   }
 
-  String text = renderedBody.length() > 0 ? renderedBody : ("📱短信通知\n发送者: " + sender + "\n内容: " + message + "\n时间: " + timestamp);
+  String text = message.type == PUSH_BODY_CUSTOM ? message.content : ("📱短信通知\n发送者: " + sender + "\n内容: " + message.content + "\n时间: " + timestamp);
   doc["msg_type"]        = "text";
   doc["content"]["text"] = text;
 
@@ -241,7 +241,7 @@ bool PushChannels::sendFeishu(const PushChannel& ch, const String& sender, const
   return isResponseSuccessful(session.get(), code);
 }
 
-bool PushChannels::sendGotify(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
+bool PushChannels::sendGotify(const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp) {
   String url = ch.url;
   if (!url.endsWith("/")) url += "/";
   url += "message?token=" + ch.key1;
@@ -249,7 +249,7 @@ bool PushChannels::sendGotify(const PushChannel& ch, const String& sender, const
   if (!session) return false;
   session->http()->addHeader("Content-Type", "application/json");
 
-  String msg = renderedBody.length() > 0 ? renderedBody : (message + "\n\n时间: " + timestamp);
+  String msg = message.type == PUSH_BODY_CUSTOM ? message.content : (message.content + "\n\n时间: " + timestamp);
   JsonDocument doc;
   doc["title"]    = "短信来自: " + sender;
   doc["message"]  = msg;
@@ -262,7 +262,7 @@ bool PushChannels::sendGotify(const PushChannel& ch, const String& sender, const
   return isResponseSuccessful(session.get(), code);
 }
 
-bool PushChannels::sendTelegram(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
+bool PushChannels::sendTelegram(const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp) {
   String baseUrl = ch.url.length() > 0 ? ch.url : "https://api.telegram.org";
   if (baseUrl.endsWith("/")) baseUrl.remove(baseUrl.length() - 1);
   String url = baseUrl + "/bot" + ch.key2 + "/sendMessage";
@@ -270,7 +270,7 @@ bool PushChannels::sendTelegram(const PushChannel& ch, const String& sender, con
   if (!session) return false;
   session->http()->addHeader("Content-Type", "application/json");
 
-  String text = renderedBody.length() > 0 ? renderedBody : ("📱短信通知\n发送者: " + sender + "\n内容: " + message + "\n时间: " + timestamp);
+  String text = message.type == PUSH_BODY_CUSTOM ? message.content : ("📱短信通知\n发送者: " + sender + "\n内容: " + message.content + "\n时间: " + timestamp);
   JsonDocument doc;
   doc["chat_id"] = ch.key1;
   doc["text"]    = text;
@@ -282,7 +282,7 @@ bool PushChannels::sendTelegram(const PushChannel& ch, const String& sender, con
   return isResponseSuccessful(session.get(), code);
 }
 
-bool PushChannels::sendWechatWork(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
+bool PushChannels::sendWechatWork(const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp) {
   String webhookUrl = ch.url;
 
   if (ch.key1.length() > 0) {
@@ -297,7 +297,7 @@ bool PushChannels::sendWechatWork(const PushChannel& ch, const String& sender, c
   if (!session) return false;
   session->http()->addHeader("Content-Type", "application/json");
 
-  String content = renderedBody.length() > 0 ? renderedBody : ("📱短信通知\n发件人: " + sender + "\n内容: " + message + "\n时间: " + timestamp);
+  String content = message.type == PUSH_BODY_CUSTOM ? message.content : ("📱短信通知\n发件人: " + sender + "\n内容: " + message.content + "\n时间: " + timestamp);
   JsonDocument doc;
   doc["msgtype"] = "text";
   doc["text"]["content"] = content;
@@ -309,13 +309,8 @@ bool PushChannels::sendWechatWork(const PushChannel& ch, const String& sender, c
   return isResponseSuccessful(session.get(), code);
 }
 
-bool PushChannels::sendSmsPush(const PushChannel& ch, const String& sender, const String& message, const String& timestamp, const String& renderedBody) {
-  String content;
-  if (renderedBody.length() > 0) {
-    content = renderedBody;
-  } else {
-    content = "[转发]发件人: " + sender + "\n内容: " + message;
-  }
+bool PushChannels::sendSmsPush(const PushChannel& ch, const String& sender, const PushBody& message, const String& timestamp) {
+  String content = message.type == PUSH_BODY_CUSTOM ? message.content : ("[转发]发件人: " + sender + "\n内容: " + message.content);
   // Sms::sendPDU 内部自动处理长短信拆分，无需手动截断
   LOG("PUSHCH", "SMS备份推送到: %s", ch.url.c_str());
   bool ok = Sms::sendPDU(ch.url.c_str(), content.c_str());
