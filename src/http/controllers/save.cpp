@@ -71,7 +71,7 @@ void saveController(AsyncWebServerRequest* request) {
   }
 
   ConfigStore::save();
-  Logger::setFileEnabled(config.logFileEnabled);
+  Logger::setStorageEnabled(config.logFileEnabled);
   HttpServer::refreshAuthCredentials();
 
   LOG("HSAVE", "配置已保存，发送成功响应");

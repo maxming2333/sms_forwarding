@@ -131,7 +131,7 @@ void setup() {
     // 可用模块名：Push / PushQ / Retry / SMS / SIM / Call / WiFi / HTTP / OTA / BLE / Time / Cfg
     static const char* kLogFileSkip[] = { nullptr };
     Logger::init(kLogFileSkip);
-    Logger::setFileEnabled(config.logFileEnabled);
+    Logger::setStorageEnabled(config.logFileEnabled);
   }
   esp_task_wdt_reset();
 
