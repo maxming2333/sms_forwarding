@@ -50,6 +50,8 @@ void Logger::init(const char* const* fileSkipModules) {
       s_fileSkip[s_fileSkipCount++] = fileSkipModules[i];
     }
   }
+  // 每次 init（含软重启）都清空文件和内存缓冲，确保从干净状态开始
+  clearFile();
 }
 
 void Logger::setFileEnabled(bool enabled) {
@@ -58,8 +60,11 @@ void Logger::setFileEnabled(bool enabled) {
 
 void Logger::clearFile() {
   LittleFS.remove(FILE_PATH);
-  s_lastModule[0] = '\0';
-  s_lastMsg[0]    = '\0';
+  // 同步清空内存环形缓冲和去重状态
+  s_head           = 0;
+  s_count          = 0;
+  s_lastModule[0]  = '\0';
+  s_lastMsg[0]     = '\0';
 }
 
 void Logger::log(const char* module, const char* fmt, ...) {
