@@ -12,12 +12,10 @@ if not app_version:
     if os.path.exists(version_file):
         prefix = open(version_file).read().strip()
     else:
-        prefix = "v1"
+        prefix = "1"
     if not prefix:
         prefix = "unknown"
         print("[inject_app_version] ⚠️  VERSION file is empty, using 'unknown'")
-    if not prefix.lower().startswith("v"):
-        prefix = "v" + prefix
     try:
         sha = subprocess.check_output(
             ["git", "rev-parse", "--short=7", "HEAD"],

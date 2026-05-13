@@ -32,10 +32,7 @@ jobs:
           if [ -f VERSION ]; then
             PREFIX=$(cat VERSION | tr -d '[:space:]')
           else
-            PREFIX="v1"
-          fi
-          if [[ ! "$PREFIX" =~ ^[vV] ]]; then
-            PREFIX="v${PREFIX}"
+            PREFIX="1"
           fi
           SHA_SHORT=$(git rev-parse --short=7 HEAD)
           FULL_SHA=$(git rev-parse HEAD)

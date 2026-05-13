@@ -28,8 +28,8 @@ static size_t                  g_lfsTotalSize   = 0;
 // ── Ota::version ────────────────────────────────────────
 String Ota::version() {
     // 重建与 GitHub release tag 一致的完整版本号：
-    //   APP_VERSION   = "v1-551f992"        (prefix-sha)
-    //   release tag   = "v1-20260423T210356-551f992" (prefix-dateTimestamp-sha)
+    //   APP_VERSION   = "1-551f992"        (prefix-sha)
+    //   release tag   = "1-20260423T210356-551f992" (prefix-dateTimestamp-sha)
     // APP_BUILD_DATE = "2026-04-23" → 去除 '-' → "20260423"
     // APP_BUILD_TIME = "21:03:56"   → 去除 ':' → "210356"
     String ver = String(APP_VERSION);
